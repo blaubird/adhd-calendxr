@@ -1,0 +1,229 @@
+# Calendar Brain (Private) — Master Spec (Updated)
+
+**Production domain:** https://calendar.luminiteq.eu  
+**Audience:** only me (single user)  
+**Primary goal:** an ADHD-friendly “external brain” with a weekly overview, voice-assisted capture, and reliable persistence.
+
+> **Update:** We no longer care about a `/calendar` path. The app can live at the root of this project/domain.
+
+---
+
+## 1) Why this exists
+
+I forget plans and lose tasks across notes/chats. I need a single, private system that is:
+- fast to add items (voice → draft),
+- visually simple (week board, list-based),
+- strict about confirmation (draft → manual edit → commit),
+- reliable (no broken deploys due to DB drift).
+
+This is not a public SaaS. It is optimized for **speed, clarity, privacy, and maintainability**.
+
+---
+
+## 2) Non-negotiable product goals
+
+### 2.1 Weekly overview UI (core experience)
+- Primary view is a **7-day week board** (columns for days).
+- Each day contains a **simple list** of items (no hourly grid).
+- Each item is displayed as:
+  - `10:00 Dentist` (timed)
+  - `• Shopping list` (untimed)
+- Optional details appear as a subtle second line (address, short note).
+
+### 2.2 Items model (what we store)
+All entries are one of:
+- **event** (appointment / meeting / fixed thing)
+- **task** (todo / checklist / errand)
+
+Fields:
+- `day` (required)
+- `timeStart` / `timeEnd` (optional)
+- `title` (required)
+- `details` (optional, short free text)
+- `status` for tasks: `todo | done | canceled`
+
+### 2.3 Voice input (draft-only)
+Voice is used only to create a draft, never to commit silently.
+
+Flow:
+1) Browser **Web Speech API** generates transcript text
+2) Send transcript to `/api/agent/parse`
+3) Receive **Draft JSON**
+4) Show a **manual edit form**
+5) User presses **Commit** → writes to DB
+
+**Important:** After Draft generation, user can change parameters (date/time/title/details/kind) **without a second AI call**.
+
+### 2.4 Privacy & access control
+- This is a personal tool, but still requires real auth.
+- All app pages and API routes must require authentication.
+
+---
+
+## 3) UX principles
+
+- Minimal cognitive load
+- Fast capture
+- Draft-first safety (no surprise writes)
+- Predictable layout week-to-week
+- Easy edits (mouse + keyboard)
+
+---
+
+## 4) Pages & key interactions
+
+### 4.1 Root page (Week board)
+The root page should render the week board.
+
+Must include:
+- Week navigation: **Prev / Next / Today**
+- 7 day columns
+- Items sorted: timed first (ascending), then untimed
+- Each day column has:
+  - **+ Add** (manual add)
+  - **🎙 Add by voice** (voice draft flow)
+- Each item supports:
+  - click → Edit modal
+  - actions: Mark done (tasks), Delete
+
+### 4.2 Modals
+
+**Manual Add/Edit**
+- Fields:
+  - Kind: event/task
+  - Title
+  - Day (date picker)
+  - Time start/end (optional)
+  - Details (optional)
+  - Status (tasks)
+- Buttons:
+  - Save
+  - Cancel
+  - Delete (edit mode)
+
+**Voice modal**
+- Big record button
+- Transcript preview (editable textarea)
+- “Parse” button
+- Draft form appears (same fields as manual add)
+- Commit button
+
+---
+
+## 5) Backend requirements
+
+### 5.1 Database (Postgres via Neon/Vercel)
+Use Drizzle for schema and migrations.
+
+Create table `items`:
+
+- `id` uuid primary key
+- `userId` (type depends on auth user model) indexed
+- `kind` enum('event','task') not null
+- `title` text not null
+- `day` date not null
+- `timeStart` time nullable
+- `timeEnd` time nullable
+- `details` text nullable
+- `status` enum('todo','done','canceled') default 'todo'
+- `createdAt` timestamp
+- `updatedAt` timestamp
+
+Single-user is fine, but still scope all queries by `userId`.
+
+### 5.2 API routes (Next Route Handlers)
+All routes require auth and must scope by userId.
+
+- `GET /api/items?from=YYYY-MM-DD&to=YYYY-MM-DD`
+- `POST /api/items`
+- `PATCH /api/items/:id`
+- `DELETE /api/items/:id`
+
+### 5.3 Agent parse route
+- `POST /api/agent/parse` with `{ text: string }`
+- Output validated by Zod:
+
+Draft object minimal shape:
+- `kind`: 'event' | 'task' | 'clarify'
+- `title`: string
+- `day`: 'YYYY-MM-DD' (Europe/Paris assumed)
+- `timeStart?`: 'HH:mm'
+- `timeEnd?`: 'HH:mm'
+- `details?`: string
+- `questions?`: string[] (only if kind='clarify')
+
+Rules:
+- If day/time are missing: return `kind='clarify'` with minimal questions.
+- Prefer untimed items instead of inventing times.
+- Do not invent details.
+
+---
+
+## 6) Morning email digest (Phase 2)
+
+Goal: one email every morning around **08:00 Europe/Paris** with today’s plan.
+
+- Email includes:
+  - Today’s date
+  - Timed items list
+  - Untimed items list
+
+Implementation:
+- Use Resend.
+- Vercel Cron calls `/api/cron/morning-email`.
+- Add idempotency: never send twice for the same day.
+
+Note: Vercel free cron may drift; minute-precision is not required.
+
+---
+
+## 7) Deployment & operations constraints
+
+### 7.1 No local dev required from owner
+All work happens via PRs and Vercel deployments.
+
+### 7.2 Migrations must be future-proof (chosen approach)
+**Chosen migration strategy:** **GitHub Actions applies Drizzle migrations on push to `main`.**
+
+Rules:
+- Migrations are stored in the repo and never edited retroactively.
+- Each schema change PR includes a new migration.
+- CI runs `db:migrate` using `DATABASE_URL` from GitHub Secrets.
+
+This avoids:
+- manual SQL work,
+- insecure “migrate admin routes” in production,
+- drift between code and database.
+
+---
+
+## 8) Definition of Done (MVP)
+
+MVP is done when:
+1) The root page shows the 7-day board with items from DB.
+2) Manual add/edit/delete works.
+3) Voice → Draft → manual edit → Commit works.
+4) All routes are auth-protected.
+5) Deployed at https://calendar.luminiteq.eu
+6) GitHub Actions migration pipeline exists and runs on `main`.
+
+---
+
+## 9) Out of scope (for now)
+
+- Mobile app
+- Telegram bot
+- Calendar sync (Google/Apple)
+- Complex recurring rules UI
+- Notifications beyond morning email digest
+
+---
+
+## 10) Engineering best practices
+
+- Keep dependencies minimal.
+- Validate inputs with Zod.
+- Scope DB queries by authenticated user.
+- Prefer simple custom week UI over heavy calendar libraries.
+- No AI auto-commit: draft → manual review is mandatory.
+- Migrations are forward-only and applied by CI.
