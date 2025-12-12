@@ -1,0 +1,22 @@
+name: Apply Drizzle migrations
+
+on:
+  push:
+    branches: ["main"]
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Push migrations
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: pnpm migrate:push

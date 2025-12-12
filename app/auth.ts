@@ -11,13 +11,18 @@ export const {
   signOut,
 } = NextAuth({
   ...authConfig,
+  session: { strategy: 'jwt' },
   providers: [
     Credentials({
       async authorize({ email, password }: any) {
-        let user = await getUser(email);
-        if (user.length === 0) return null;
-        let passwordsMatch = await compare(password, user[0].password!);
-        if (passwordsMatch) return user[0] as any;
+        let users = await getUser(email);
+        if (users.length === 0) return null;
+        let dbUser = users[0];
+        let passwordsMatch = await compare(password, dbUser.password!);
+        if (passwordsMatch) {
+          return { id: String(dbUser.id), email: dbUser.email } as any;
+        }
+        return null;
       },
     }),
   ],
