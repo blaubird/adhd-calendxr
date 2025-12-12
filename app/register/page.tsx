@@ -20,19 +20,19 @@ export default function Login() {
   }
 
   return (
-    <div className="flex h-screen w-screen items-center justify-center bg-gray-50">
-      <div className="z-10 w-full max-w-md overflow-hidden rounded-2xl border border-gray-100 shadow-xl">
-        <div className="flex flex-col items-center justify-center space-y-3 border-b border-gray-200 bg-white px-4 py-6 pt-8 text-center sm:px-16">
-          <h3 className="text-xl font-semibold">Sign Up</h3>
-          <p className="text-sm text-gray-500">
+    <div className="flex h-screen w-screen items-center justify-center bg-sand text-slate-100 px-4">
+      <div className="z-10 w-full max-w-md overflow-hidden rounded-2xl border border-slate-800 shadow-soft bg-card">
+        <div className="flex flex-col items-center justify-center space-y-3 border-b border-slate-800 bg-card px-4 py-6 pt-8 text-center sm:px-10">
+          <h3 className="text-xl font-semibold text-white">Sign Up</h3>
+          <p className="text-sm text-slate-400">
             Create an account with your email and password
           </p>
         </div>
         <Form action={register}>
           <SubmitButton>Sign Up</SubmitButton>
-          <p className="text-center text-sm text-gray-600">
+          <p className="text-center text-sm text-slate-400">
             {'Already have an account? '}
-            <Link href="/login" className="font-semibold text-gray-800">
+            <Link href="/login" className="font-semibold text-white">
               Sign in
             </Link>
             {' instead.'}

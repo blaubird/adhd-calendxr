@@ -1,8 +1,16 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { addDays, format, parseISO } from 'date-fns';
+import { addDays } from 'date-fns';
 import { Draft, Item, ItemKind, TaskStatus } from 'app/types';
+import {
+  formatDateFull,
+  formatDayHeading,
+  formatDayKey,
+  formatTimeValue,
+  parseDayKey,
+  rangeEndFromAnchor,
+} from 'app/lib/datetime';
 
 type ItemFormState = {
   id?: number;
@@ -17,13 +25,22 @@ type ItemFormState = {
 
 const emptyForm: ItemFormState = {
   kind: 'task',
-  day: format(new Date(), 'yyyy-MM-dd'),
+  day: formatDayKey(new Date()),
   timeStart: null,
   timeEnd: null,
   title: '',
   details: null,
   status: 'todo',
 };
+
+const VISIBLE_DAYS = 4;
+const ANCHOR_STORAGE_KEY = 'calendar-anchor';
+const PIN_STORAGE_KEY = 'calendar-anchor-pinned';
+const LAST_SEEN_DAY_KEY = 'calendar-last-seen';
+
+function todayKey() {
+  return formatDayKey(new Date());
+}
 
 function sortItems(items: Item[]) {
   return [...items].sort((a, b) => {
@@ -47,26 +64,34 @@ export default function WeekBoard({
   initialStart: string;
   userEmail: string;
 }) {
-  const [start, setStart] = useState(initialStart);
+  const [anchor, setAnchor] = useState(initialStart);
+  const [pinned, setPinned] = useState(false);
   const [items, setItems] = useState<Item[]>(initialItems);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<ItemFormState | null>(null);
   const [showVoice, setShowVoice] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
-
-  const days = useMemo(() => {
-    const startDate = parseISO(start);
-    return Array.from({ length: 7 }, (_, i) => addDays(startDate, i));
-  }, [start]);
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    if (start === initialStart) return;
+    const savedAnchor = typeof window !== 'undefined' ? localStorage.getItem(ANCHOR_STORAGE_KEY) : null;
+    const savedPinned = typeof window !== 'undefined' ? localStorage.getItem(PIN_STORAGE_KEY) : null;
+    if (savedAnchor) setAnchor(savedAnchor);
+    if (savedPinned) setPinned(savedPinned === '1');
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(LAST_SEEN_DAY_KEY, todayKey());
+    }
+    setHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    const end = rangeEndFromAnchor(anchor, VISIBLE_DAYS);
     setLoading(true);
     setError(null);
     const fetchItems = async () => {
-      const end = format(addDays(parseISO(start), 6), 'yyyy-MM-dd');
-      const res = await fetch(`/api/items?start=${start}&end=${end}`);
+      const res = await fetch(`/api/items?start=${anchor}&end=${end}`);
       if (!res.ok) {
         setError('Could not load items');
         setLoading(false);
@@ -77,7 +102,35 @@ export default function WeekBoard({
       setLoading(false);
     };
     fetchItems();
-  }, [start, initialStart]);
+  }, [anchor, hydrated]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    localStorage.setItem(ANCHOR_STORAGE_KEY, anchor);
+    localStorage.setItem(PIN_STORAGE_KEY, pinned ? '1' : '0');
+  }, [anchor, pinned, hydrated]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    const checkDayRollover = () => {
+      const current = todayKey();
+      const lastSeen = localStorage.getItem(LAST_SEEN_DAY_KEY);
+      if (lastSeen !== current) {
+        localStorage.setItem(LAST_SEEN_DAY_KEY, current);
+        if (!pinned) {
+          setAnchor(current);
+        }
+      }
+    };
+    const id = setInterval(checkDayRollover, 60 * 1000);
+    checkDayRollover();
+    return () => clearInterval(id);
+  }, [pinned, hydrated]);
+
+  const days = useMemo(() => {
+    const startDate = parseDayKey(anchor);
+    return Array.from({ length: VISIBLE_DAYS }, (_, i) => addDays(startDate, i));
+  }, [anchor]);
 
   const grouped = useMemo(() => {
     const map: Record<string, Item[]> = {};
@@ -147,85 +200,107 @@ export default function WeekBoard({
     });
   }
 
+  const changeAnchor = (next: string, pinOverride?: boolean) => {
+    setAnchor(next);
+    const shouldPin = pinOverride ?? next !== todayKey();
+    setPinned(shouldPin);
+  };
+
+  const shiftAnchor = (delta: number) => changeAnchor(formatDayKey(addDays(parseDayKey(anchor), delta)), true);
+  const goToday = () => changeAnchor(todayKey(), false);
+
+  const rangeLabel = `${formatDateFull(parseDayKey(anchor))} → ${formatDateFull(
+    addDays(parseDayKey(anchor), VISIBLE_DAYS - 1),
+  )}`;
+
   return (
-    <div className="px-4 pb-10 pt-6 space-y-4 max-w-7xl mx-auto">
+    <div className="px-3 sm:px-6 pb-12 pt-6 space-y-6 max-w-screen-2xl mx-auto w-full">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <button
-            className="rounded-full border border-slate-200 px-3 py-2 text-sm hover:bg-white"
-            onClick={() => setStart(format(addDays(parseISO(start), -7), 'yyyy-MM-dd'))}
+            className="rounded-full border border-slate-700 px-3 py-2 text-sm text-slate-100 hover:bg-slate-800 transition-colors"
+            onClick={() => shiftAnchor(-1)}
           >
             ◀ Previous
           </button>
           <button
-            className="rounded-full border border-slate-200 px-3 py-2 text-sm hover:bg-white"
-            onClick={() => setStart(format(new Date(), 'yyyy-MM-dd'))}
+            className="rounded-full border border-slate-700 px-3 py-2 text-sm text-slate-100 hover:bg-slate-800 transition-colors"
+            onClick={goToday}
           >
             Today
           </button>
           <button
-            className="rounded-full border border-slate-200 px-3 py-2 text-sm hover:bg-white"
-            onClick={() => setStart(format(addDays(parseISO(start), 7), 'yyyy-MM-dd'))}
+            className="rounded-full border border-slate-700 px-3 py-2 text-sm text-slate-100 hover:bg-slate-800 transition-colors"
+            onClick={() => shiftAnchor(1)}
           >
             Next ▶
           </button>
         </div>
-        <div className="flex items-center gap-2 text-sm text-slate-600">
-          <span className="text-slate-500">Signed in:</span> {userEmail}
+        <div className="flex flex-col items-end text-sm text-slate-400">
+          <span className="text-slate-300">{rangeLabel}</span>
+          <span className="text-slate-500">Signed in: {userEmail}</span>
         </div>
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-rose-400">{error}</p>}
 
-      <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-7 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {days.map((day) => {
-          const key = format(day, 'yyyy-MM-dd');
+          const key = formatDayKey(day);
           const dayItems = grouped[key] || [];
           return (
-            <div key={key} className="bg-card rounded-2xl shadow-soft p-4 border border-slate-100 flex flex-col gap-3">
+            <div
+              key={key}
+              className="bg-card rounded-2xl shadow-soft p-4 border border-slate-800 flex flex-col gap-3 min-h-[420px]"
+            >
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs uppercase tracking-wide text-slate-500">{format(day, 'EEE')}</p>
-                  <p className="text-lg font-semibold text-slate-900">{format(day, 'MMM d')}</p>
+                  <p className="text-xs uppercase tracking-wide text-slate-500">{formatDayHeading(day)}</p>
+                  <p className="text-lg font-semibold text-white">{formatDateFull(day)}</p>
                 </div>
                 <button
-                  className="text-sm text-indigo-600 font-medium hover:text-indigo-500"
+                  className="text-sm text-sky-300 font-medium hover:text-sky-200"
                   onClick={() => openNew(key)}
                 >
                   + Add
                 </button>
               </div>
-              <div className="space-y-2">
-                {loading && <p className="text-sm text-slate-400">Loading…</p>}
+              <div className="space-y-2 flex-1 overflow-hidden">
+                {loading && <p className="text-sm text-slate-500">Loading…</p>}
                 {!loading && dayItems.length === 0 && (
-                  <p className="text-sm text-slate-400">Nothing planned.</p>
+                  <p className="text-sm text-slate-500">Nothing planned.</p>
                 )}
                 {dayItems.map((item) => (
                   <article
                     key={item.id}
-                    className="rounded-xl border border-slate-200 px-3 py-2 bg-white hover:border-indigo-200"
+                    className="rounded-xl border border-slate-700 px-3 py-2 bg-slate-900 hover:border-sky-500/40 transition-colors"
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1">
-                        <p className="text-sm font-semibold text-slate-900">
-                          {item.timeStart ? `${item.timeStart} ` : '• '}
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <p className="text-sm font-semibold text-slate-100 leading-snug break-words">
+                          {item.timeStart ? `${formatTimeValue(item.timeStart)} ` : '• '}
                           {item.title}
                         </p>
                         {item.details && (
-                          <p className="text-xs text-slate-500 mt-1 leading-tight">{item.details}</p>
+                          <p className="text-xs text-slate-400 leading-snug break-words">{item.details}</p>
                         )}
                         {item.status && item.kind === 'task' && (
-                          <p className="text-[11px] text-slate-500 mt-1">Status: {item.status}</p>
+                          <p className="text-[11px] text-slate-500">Status: {item.status}</p>
                         )}
                       </div>
-                      <div className="flex flex-col gap-1 text-xs text-indigo-600">
+                      <div className="flex flex-col gap-1 text-xs text-sky-300 shrink-0">
                         {item.kind === 'task' && (
-                          <button onClick={() => markStatus(item, item.status === 'done' ? 'todo' : 'done')}>
+                          <button
+                            className="hover:text-sky-100"
+                            onClick={() => markStatus(item, item.status === 'done' ? 'todo' : 'done')}
+                          >
                             {item.status === 'done' ? 'Undo' : 'Done'}
                           </button>
                         )}
-                        <button onClick={() => setEditing({ ...item })}>Edit</button>
-                        <button className="text-rose-600" onClick={() => removeItem(item.id)}>
+                        <button className="hover:text-sky-100" onClick={() => setEditing({ ...item })}>
+                          Edit
+                        </button>
+                        <button className="text-rose-300 hover:text-rose-200" onClick={() => removeItem(item.id)}>
                           Delete
                         </button>
                       </div>
@@ -238,14 +313,14 @@ export default function WeekBoard({
         })}
       </div>
 
-      <div className="bg-card rounded-2xl p-4 border border-slate-200 shadow-soft">
+      <div className="bg-card rounded-2xl p-4 border border-slate-800 shadow-soft">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-semibold text-slate-900">Voice capture</p>
+            <p className="text-sm font-semibold text-white">Voice capture</p>
             <p className="text-xs text-slate-500">Use your mic to draft an item, then confirm manually.</p>
           </div>
           <button
-            className="rounded-full border border-slate-200 px-3 py-2 text-sm hover:bg-white"
+            className="rounded-full border border-slate-700 px-3 py-2 text-sm text-slate-100 hover:bg-slate-800 transition-colors"
             onClick={() => setShowVoice((v) => !v)}
           >
             {showVoice ? 'Hide' : 'Open'}
@@ -260,12 +335,14 @@ export default function WeekBoard({
           />
         )}
         {draft?.kind === 'clarify' && (
-          <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          <div className="mt-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-200">
             <p className="font-semibold">Need clarification</p>
-            <p className="mt-1">{draft.title}</p>
-            <ul className="list-disc list-inside mt-2 space-y-1">
+            <p className="mt-1 break-words">{draft.title}</p>
+            <ul className="list-disc list-inside mt-2 space-y-1 text-amber-100">
               {draft.questions?.map((q) => (
-                <li key={q}>{q}</li>
+                <li key={q} className="break-words">
+                  {q}
+                </li>
               ))}
             </ul>
           </div>
@@ -310,23 +387,23 @@ function EditModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/30 flex items-center justify-center p-4 z-20">
-      <div className="bg-white rounded-2xl shadow-soft w-full max-w-xl p-5 space-y-4">
+    <div className="fixed inset-0 bg-slate-950/70 flex items-center justify-center p-4 z-20">
+      <div className="bg-slate-900 rounded-2xl shadow-soft w-full max-w-xl p-5 space-y-4 border border-slate-700">
         <div className="flex items-start justify-between">
           <div>
-            <p className="text-sm text-slate-500">{local.id ? 'Edit item' : 'New item'}</p>
-            <h2 className="text-xl font-semibold">{local.title || 'Untitled'}</h2>
+            <p className="text-sm text-slate-400">{local.id ? 'Edit item' : 'New item'}</p>
+            <h2 className="text-xl font-semibold text-white">{local.title || 'Untitled'}</h2>
           </div>
-          <button className="text-slate-500 text-sm" onClick={onClose}>
+          <button className="text-slate-400 text-sm hover:text-slate-200" onClick={onClose}>
             Close
           </button>
         </div>
 
         <div className="grid grid-cols-2 gap-3 text-sm">
           <label className="flex flex-col gap-1">
-            <span className="text-slate-600">Kind</span>
+            <span className="text-slate-300">Kind</span>
             <select
-              className="rounded-lg border border-slate-200 px-3 py-2"
+              className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100"
               value={local.kind}
               onChange={(e) => update('kind', e.target.value as ItemKind)}
             >
@@ -335,45 +412,45 @@ function EditModal({
             </select>
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-slate-600">Day</span>
+            <span className="text-slate-300">Day</span>
             <input
               type="date"
-              className="rounded-lg border border-slate-200 px-3 py-2"
+              className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100"
               value={local.day}
               onChange={(e) => update('day', e.target.value)}
             />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-slate-600">Start</span>
+            <span className="text-slate-300">Start</span>
             <input
               type="time"
-              className="rounded-lg border border-slate-200 px-3 py-2"
-              value={local.timeStart || ''}
+              className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100"
+              value={formatTimeValue(local.timeStart)}
               onChange={(e) => update('timeStart', e.target.value || null)}
             />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-slate-600">End</span>
+            <span className="text-slate-300">End</span>
             <input
               type="time"
-              className="rounded-lg border border-slate-200 px-3 py-2"
-              value={local.timeEnd || ''}
+              className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100"
+              value={formatTimeValue(local.timeEnd)}
               onChange={(e) => update('timeEnd', e.target.value || null)}
             />
           </label>
           <label className="flex flex-col gap-1 col-span-2">
-            <span className="text-slate-600">Title</span>
+            <span className="text-slate-300">Title</span>
             <input
-              className="rounded-lg border border-slate-200 px-3 py-2"
+              className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100"
               value={local.title}
               onChange={(e) => update('title', e.target.value)}
               placeholder="Dentist, call with Alex…"
             />
           </label>
           <label className="flex flex-col gap-1 col-span-2">
-            <span className="text-slate-600">Details</span>
+            <span className="text-slate-300">Details</span>
             <textarea
-              className="rounded-lg border border-slate-200 px-3 py-2"
+              className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100"
               value={local.details || ''}
               onChange={(e) => update('details', e.target.value || null)}
               placeholder="Location, prep, notes"
@@ -382,9 +459,9 @@ function EditModal({
           </label>
           {local.kind === 'task' && (
             <label className="flex flex-col gap-1">
-              <span className="text-slate-600">Status</span>
+              <span className="text-slate-300">Status</span>
               <select
-                className="rounded-lg border border-slate-200 px-3 py-2"
+                className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100"
                 value={local.status || 'todo'}
                 onChange={(e) => update('status', e.target.value as TaskStatus)}
               >
@@ -398,14 +475,14 @@ function EditModal({
 
         <div className="flex justify-end gap-2">
           <button
-            className="px-4 py-2 text-sm rounded-lg border border-slate-200 hover:bg-slate-50"
+            className="px-4 py-2 text-sm rounded-lg border border-slate-700 text-slate-100 hover:bg-slate-800"
             onClick={onClose}
             disabled={submitting}
           >
             Cancel
           </button>
           <button
-            className="px-4 py-2 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-500"
+            className="px-4 py-2 text-sm rounded-lg bg-sky-600 text-white hover:bg-sky-500 disabled:opacity-60"
             onClick={handleSubmit}
             disabled={submitting}
           >
@@ -420,6 +497,7 @@ function EditModal({
 function VoiceDraft({ onDraft }: { onDraft: (draft: Draft) => void }) {
   const [listening, setListening] = useState(false);
   const [transcript, setTranscript] = useState('');
+  const [language, setLanguage] = useState<'ru-RU' | 'en-US'>('ru-RU');
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -436,7 +514,7 @@ function VoiceDraft({ onDraft }: { onDraft: (draft: Draft) => void }) {
     const recognition = new SpeechRecognition();
     recognition.continuous = false;
     recognition.interimResults = true;
-    recognition.lang = 'en-US';
+    recognition.lang = language;
 
     recognition.onresult = (event: any) => {
       const interim = Array.from(event.results)
@@ -456,7 +534,7 @@ function VoiceDraft({ onDraft }: { onDraft: (draft: Draft) => void }) {
 
     recognition.start();
     return () => recognition.stop();
-  }, [listening]);
+  }, [listening, language]);
 
   const sendDraft = async () => {
     if (!transcript.trim()) return;
@@ -475,10 +553,14 @@ function VoiceDraft({ onDraft }: { onDraft: (draft: Draft) => void }) {
   };
 
   return (
-    <div className="mt-3 space-y-2">
+    <div className="mt-3 space-y-3">
       <div className="flex gap-2 items-center flex-wrap">
         <button
-          className={`px-4 py-2 text-sm rounded-full border ${listening ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-slate-200'}`}
+          className={`px-4 py-2 text-sm rounded-full border transition-colors ${
+            listening
+              ? 'border-rose-400 bg-rose-500/10 text-rose-100'
+              : 'border-slate-700 text-slate-100 hover:bg-slate-800'
+          }`}
           onClick={() => {
             setTranscript('');
             setError(null);
@@ -488,15 +570,31 @@ function VoiceDraft({ onDraft }: { onDraft: (draft: Draft) => void }) {
           {listening ? 'Stop capture' : 'Start capture'}
         </button>
         <button
-          className="px-3 py-2 text-sm rounded-full border border-slate-200 disabled:opacity-50"
+          className="px-3 py-2 text-sm rounded-full border border-slate-700 text-slate-100 disabled:opacity-50 hover:bg-slate-800"
           disabled={!transcript}
           onClick={sendDraft}
         >
           Create draft
         </button>
-        {transcript && <span className="text-xs text-slate-500">{transcript}</span>}
+        <div className="flex items-center gap-2 text-xs text-slate-400">
+          <span className="text-slate-300">Language</span>
+          <div className="flex rounded-full border border-slate-700 overflow-hidden">
+            {(['ru-RU', 'en-US'] as const).map((lang) => (
+              <button
+                key={lang}
+                className={`px-3 py-1 text-xs uppercase tracking-wide transition-colors ${
+                  language === lang ? 'bg-slate-800 text-sky-200' : 'text-slate-400 hover:text-slate-200'
+                }`}
+                onClick={() => setLanguage(lang)}
+              >
+                {lang === 'ru-RU' ? 'RU' : 'EN'}
+              </button>
+            ))}
+          </div>
+        </div>
+        {transcript && <span className="text-xs text-slate-400 break-words">{transcript}</span>}
       </div>
-      {error && <p className="text-sm text-rose-600">{error}</p>}
+      {error && <p className="text-sm text-rose-300">{error}</p>}
     </div>
   );
 }
