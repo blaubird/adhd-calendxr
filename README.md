@@ -46,6 +46,12 @@ pnpm migrate:push
 - Voice capture → parsing endpoint → manual draft confirmation before saving.
 - Zod validation on API inputs and draft parsing contract.
 
+## Item API contract
+
+- All requests are scoped to the authenticated session; the server derives `userId` from the session and ignores any `userId` fields in client payloads.
+- `POST /api/items` expects `{ kind, day, title, timeStart?, timeEnd?, details?, status? }`.
+- `PUT /api/items/:id` uses the same shape as `POST` and updates only the caller's items.
+
 ## Notes
 
 - All dates are stored as `YYYY-MM-DD` with Europe/Paris-friendly defaults on the parser. Times are optional and sort timed items first.

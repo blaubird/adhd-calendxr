@@ -4,6 +4,7 @@ import postgres from 'postgres';
 import { genSaltSync, hashSync } from 'bcrypt-ts';
 
 import { InsertItem, SelectItem, items, users } from './schema';
+import type { ItemInput } from './lib/validation';
 
 const connectionString =
   process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.POSTGRES_URL_NON_POOLING;
@@ -30,18 +31,28 @@ export async function createUser(email: string, password: string) {
   return await db.insert(users).values({ email, password: hash }).returning();
 }
 
-export async function createItem(userId: number, payload: InsertItem) {
-  return db.insert(items).values({ ...payload, userId }).returning();
+type ItemWritePayload = Omit<InsertItem, 'id' | 'userId' | 'createdAt' | 'updatedAt'>;
+
+function normalizeItemPayload(payload: ItemInput): ItemWritePayload {
+  return {
+    ...payload,
+    timeStart: payload.timeStart ?? null,
+    timeEnd: payload.timeEnd ?? null,
+    details: payload.details ?? null,
+    status: payload.status ?? null,
+  } satisfies ItemWritePayload;
 }
 
-export async function updateItem(
-  userId: number,
-  itemId: number,
-  payload: Partial<InsertItem>
-) {
+export async function createItem(userId: number, payload: ItemInput) {
+  const values = normalizeItemPayload(payload);
+  return db.insert(items).values({ ...values, userId }).returning();
+}
+
+export async function updateItem(userId: number, itemId: number, payload: ItemInput) {
+  const values = normalizeItemPayload(payload);
   return db
     .update(items)
-    .set({ ...payload, updatedAt: new Date() })
+    .set({ ...values, updatedAt: new Date() })
     .where(and(eq(items.id, itemId), eq(items.userId, userId)))
     .returning();
 }

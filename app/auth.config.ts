@@ -1,4 +1,5 @@
-import { NextAuthConfig } from 'next-auth';
+import type { NextRequest } from 'next/server';
+import type { Session } from 'next-auth';
 
 const publicRoutes = ['/login', '/register'];
 
@@ -8,7 +9,7 @@ export const authConfig = {
   },
   providers: [],
   callbacks: {
-    authorized({ auth, request: { nextUrl } }) {
+    authorized({ auth, request: { nextUrl } }: { auth: { user?: unknown } | null; request: NextRequest }) {
       let isLoggedIn = !!auth?.user;
       let pathname = nextUrl.pathname;
       let isAuthRoute = pathname.startsWith('/api/auth');
@@ -24,11 +25,11 @@ export const authConfig = {
 
       return true;
     },
-    async session({ session, token }) {
+    async session({ session, token }: { session: Session; token: { sub?: string } }) {
       if (session.user && token.sub) {
         session.user.id = token.sub;
       }
       return session;
     },
   },
-} satisfies NextAuthConfig;
+};
