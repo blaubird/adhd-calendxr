@@ -1,50 +1,61 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
-import { pgTable, serial, varchar } from 'drizzle-orm/pg-core';
-import { eq } from 'drizzle-orm';
+import { eq, and, gte, lte } from 'drizzle-orm';
 import postgres from 'postgres';
 import { genSaltSync, hashSync } from 'bcrypt-ts';
 
-// Optionally, if not using email/pass login, you can
-// use the Drizzle adapter for Auth.js / NextAuth
-// https://authjs.dev/reference/adapter/drizzle
-let client = postgres(`${process.env.POSTGRES_URL!}?sslmode=require`);
-let db = drizzle(client);
+import { InsertItem, SelectItem, items, users } from './schema';
+
+const connectionString =
+  process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.POSTGRES_URL_NON_POOLING;
+
+if (!connectionString) {
+  throw new Error('DATABASE_URL is required');
+}
+
+const sslMode = connectionString.includes('sslmode=')
+  ? connectionString
+  : `${connectionString}${connectionString.includes('?') ? '&' : '?'}sslmode=require`;
+
+const client = postgres(sslMode);
+export const db = drizzle(client, { schema: { users, items } });
 
 export async function getUser(email: string) {
-  const users = await ensureTableExists();
   return await db.select().from(users).where(eq(users.email, email));
 }
 
 export async function createUser(email: string, password: string) {
-  const users = await ensureTableExists();
   let salt = genSaltSync(10);
   let hash = hashSync(password, salt);
 
-  return await db.insert(users).values({ email, password: hash });
+  return await db.insert(users).values({ email, password: hash }).returning();
 }
 
-async function ensureTableExists() {
-  const result = await client`
-    SELECT EXISTS (
-      SELECT FROM information_schema.tables 
-      WHERE table_schema = 'public' 
-      AND table_name = 'User'
-    );`;
-
-  if (!result[0].exists) {
-    await client`
-      CREATE TABLE "User" (
-        id SERIAL PRIMARY KEY,
-        email VARCHAR(64),
-        password VARCHAR(64)
-      );`;
-  }
-
-  const table = pgTable('User', {
-    id: serial('id').primaryKey(),
-    email: varchar('email', { length: 64 }),
-    password: varchar('password', { length: 64 }),
-  });
-
-  return table;
+export async function createItem(userId: number, payload: InsertItem) {
+  return db.insert(items).values({ ...payload, userId }).returning();
 }
+
+export async function updateItem(
+  userId: number,
+  itemId: number,
+  payload: Partial<InsertItem>
+) {
+  return db
+    .update(items)
+    .set({ ...payload, updatedAt: new Date() })
+    .where(and(eq(items.id, itemId), eq(items.userId, userId)))
+    .returning();
+}
+
+export async function deleteItem(userId: number, itemId: number) {
+  return db.delete(items).where(and(eq(items.id, itemId), eq(items.userId, userId)));
+}
+
+export async function listItemsInRange(userId: number, start: string, end: string) {
+  return db
+    .select()
+    .from(items)
+    .where(and(eq(items.userId, userId), gte(items.day, start), lte(items.day, end)))
+    .orderBy(items.day, items.timeStart, items.id);
+}
+
+export type ItemRecord = SelectItem;

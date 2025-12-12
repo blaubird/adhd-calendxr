@@ -1,3 +1,28 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  background: #f7f5f2;
+  min-height: 100vh;
+}
+
+.bg-card {
+  background: #ffffff;
+}
+
+.bg-sand {
+  background: #f7f5f2;
+}
+
+.shadow-soft {
+  box-shadow: 0 8px 30px rgba(15, 23, 42, 0.06);
+}
+
+button, input, select, textarea {
+  font: inherit;
+}
