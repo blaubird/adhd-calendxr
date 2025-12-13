@@ -535,7 +535,9 @@ export default function WeekBoard({
           onClose={() => {
             setEditing(null);
           }}
-          onSave={saveItem}
+          onSave={async (values) => {
+            await saveItem(values);
+          }}
         />
       )}
     </div>
