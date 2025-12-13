@@ -323,7 +323,7 @@ export default function WeekBoard({
   }
 
   return (
-    <div className="px-3 sm:px-6 pb-12 pt-6 space-y-6 max-w-6xl mx-auto w-full">
+    <div className="w-[90vw] max-w-7xl mx-auto px-3 sm:px-6 pb-12 pt-6 space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
@@ -356,15 +356,15 @@ export default function WeekBoard({
 
       {error && <p className="text-sm text-rose-400">{error}</p>}
 
-      <div className="overflow-x-auto pb-2">
-        <div className="grid grid-flow-col auto-cols-[minmax(300px,1fr)] gap-4 min-w-full">
+      <div className="overflow-x-auto overflow-y-hidden pb-2">
+        <div className="flex w-max gap-6">
           {days.map((day) => {
             const key = formatDayKey(day);
             const dayItems = grouped[key] || [];
             return (
               <div
                 key={key}
-                className="bg-card rounded-2xl shadow-soft p-4 border border-slate-800 flex flex-col gap-3 min-h-[440px]"
+                className="bg-card rounded-2xl shadow-soft p-4 border border-slate-800 flex flex-col gap-3 min-h-[440px] shrink-0 w-[360px] md:w-[380px] lg:w-[420px]"
               >
                 <div className="flex items-center justify-between">
                   <div>
@@ -457,8 +457,8 @@ export default function WeekBoard({
         </div>
         {chatError && <p className="text-sm text-rose-300">{chatError}</p>}
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-          <div className="flex flex-1 flex-col gap-1">
-            <div className="flex gap-2">
+          <div className="flex flex-1 flex-col gap-1 min-w-0">
+            <div className="flex gap-2 min-w-0">
               <input
                 className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-sky-500 focus:outline-none"
                 placeholder="Сегодня 18:00 покушать рамен / Today 18:00 ramen"
@@ -472,7 +472,7 @@ export default function WeekBoard({
                 }}
               />
               <button
-                className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors shrink-0 ${
                   speech.listening
                     ? 'border-amber-400 text-amber-200 bg-amber-500/10'
                     : 'border-slate-700 text-slate-100 hover:bg-slate-800'
@@ -502,7 +502,7 @@ export default function WeekBoard({
             </div>
           </div>
           <button
-            className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-500 disabled:opacity-60 disabled:cursor-not-allowed"
+            className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-500 disabled:opacity-60 disabled:cursor-not-allowed shrink-0"
             onClick={sendChatMessage}
             disabled={chatLoading || !chatInput.trim()}
           >
