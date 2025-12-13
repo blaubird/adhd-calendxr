@@ -70,8 +70,20 @@ export default function WeekBoard({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<ItemFormState | null>(null);
-  const [showVoice, setShowVoice] = useState(false);
-  const [draft, setDraft] = useState<Draft | null>(null);
+  const [pendingDrafts, setPendingDrafts] = useState<Draft[]>([]);
+  const [clarifications, setClarifications] = useState<string[] | null>(null);
+  const [chatMessages, setChatMessages] = useState<
+    { role: 'user' | 'assistant'; content: string }[]
+  >([
+    {
+      role: 'assistant',
+      content: 'Describe what to schedule (RU/EN). I will create drafts for you to confirm.',
+    },
+  ]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
+  const [confirmingDraft, setConfirmingDraft] = useState<number | null>(null);
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
@@ -142,7 +154,7 @@ export default function WeekBoard({
     return map;
   }, [items]);
 
-  async function saveItem(values: ItemFormState) {
+  async function saveItem(values: ItemFormState): Promise<boolean> {
     setError(null);
     const payload = { ...values } as any;
     if (payload.kind === 'event') payload.status = null;
@@ -157,7 +169,7 @@ export default function WeekBoard({
     });
     if (!res.ok) {
       setError('Unable to save item');
-      return;
+      return false;
     }
     const data = await res.json();
     if (values.id) {
@@ -166,7 +178,7 @@ export default function WeekBoard({
       setItems((prev) => [...prev, data.item]);
     }
     setEditing(null);
-    setDraft(null);
+    return true;
   }
 
   async function removeItem(id: number) {
@@ -187,17 +199,19 @@ export default function WeekBoard({
     setEditing({ ...emptyForm, day });
   }
 
+  const draftToFormState = (d: Draft): ItemFormState => ({
+    ...emptyForm,
+    kind: d.kind,
+    day: d.day,
+    timeStart: d.timeStart ?? null,
+    timeEnd: d.timeEnd ?? null,
+    title: d.title,
+    details: d.details ?? null,
+    status: d.kind === 'task' ? d.status ?? 'todo' : 'todo',
+  });
+
   function openFromDraft(d: Draft) {
-    if (!d.day) return;
-    setEditing({
-      ...emptyForm,
-      kind: d.kind === 'clarify' ? 'task' : d.kind,
-      day: d.day,
-      timeStart: d.timeStart || null,
-      timeEnd: d.timeEnd || null,
-      title: d.title,
-      details: d.details ?? null,
-    });
+    setEditing(draftToFormState(d));
   }
 
   const changeAnchor = (next: string, pinOverride?: boolean) => {
@@ -213,138 +227,304 @@ export default function WeekBoard({
     addDays(parseDayKey(anchor), VISIBLE_DAYS - 1),
   )}`;
 
+  async function confirmDraft(index: number, draft: Draft) {
+    setConfirmingDraft(index);
+    const success = await saveItem(draftToFormState(draft));
+    if (success) {
+      setPendingDrafts((prev) => prev.filter((_, i) => i !== index));
+    }
+    setConfirmingDraft(null);
+  }
+
+  async function sendChatMessage() {
+    const text = chatInput.trim();
+    if (!text || chatLoading) return;
+
+    const userMessage = { role: 'user' as const, content: text };
+    const history = [...chatMessages, userMessage];
+    setChatMessages(history);
+    setChatInput('');
+    setChatError(null);
+    setChatLoading(true);
+
+    try {
+      const res = await fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: history }),
+      });
+
+      if (!res.ok) {
+        setChatError('AI is unavailable right now. Please try again.');
+        setChatMessages((msgs) => [
+          ...msgs,
+          { role: 'assistant', content: 'Sorry, I could not reach the planner AI right now.' },
+        ]);
+        return;
+      }
+
+      const data = await res.json();
+      if (data.needClarification) {
+        setClarifications(data.questions || []);
+        setPendingDrafts([]);
+        setChatMessages((msgs) => [
+          ...msgs,
+          {
+            role: 'assistant',
+            content: `Need clarification:\n${(data.questions || []).join('\n')}`,
+          },
+        ]);
+        return;
+      }
+
+      if (data.drafts && Array.isArray(data.drafts)) {
+        setPendingDrafts(data.drafts);
+        setClarifications(null);
+        setChatMessages((msgs) => [
+          ...msgs,
+          {
+            role: 'assistant',
+            content: `Created ${data.drafts.length} draft(s). Review and confirm below.`,
+          },
+        ]);
+        return;
+      }
+
+      setChatMessages((msgs) => [
+        ...msgs,
+        { role: 'assistant', content: 'I could not produce drafts from that input.' },
+      ]);
+    } catch (e) {
+      setChatError('Could not reach the AI right now.');
+      setChatMessages((msgs) => [
+        ...msgs,
+        { role: 'assistant', content: 'Something went wrong while talking to the AI.' },
+      ]);
+    } finally {
+      setChatLoading(false);
+    }
+  }
+
   return (
-    <div className="px-3 sm:px-6 pb-12 pt-6 space-y-6 max-w-screen-2xl mx-auto w-full">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <button
-            className="rounded-full border border-slate-700 px-3 py-2 text-sm text-slate-100 hover:bg-slate-800 transition-colors"
-            onClick={() => shiftAnchor(-1)}
-          >
-            ◀ Previous
-          </button>
-          <button
-            className="rounded-full border border-slate-700 px-3 py-2 text-sm text-slate-100 hover:bg-slate-800 transition-colors"
-            onClick={goToday}
-          >
-            Today
-          </button>
-          <button
-            className="rounded-full border border-slate-700 px-3 py-2 text-sm text-slate-100 hover:bg-slate-800 transition-colors"
-            onClick={() => shiftAnchor(1)}
-          >
-            Next ▶
-          </button>
+    <div className="px-3 sm:px-6 pb-12 pt-6 space-y-6 max-w-6xl mx-auto w-full">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              className="rounded-full border border-slate-700 px-3 py-2 text-sm text-slate-100 hover:bg-slate-800 transition-colors"
+              onClick={() => shiftAnchor(-1)}
+            >
+              ◀ Previous
+            </button>
+            <button
+              className="rounded-full border border-slate-700 px-3 py-2 text-sm text-slate-100 hover:bg-slate-800 transition-colors"
+              onClick={goToday}
+            >
+              Today
+            </button>
+            <button
+              className="rounded-full border border-slate-700 px-3 py-2 text-sm text-slate-100 hover:bg-slate-800 transition-colors"
+              onClick={() => shiftAnchor(1)}
+            >
+              Next ▶
+            </button>
+          </div>
+          <div className="flex flex-wrap items-center gap-3 text-sm text-slate-400">
+            <span className="text-slate-300">{rangeLabel}</span>
+            <span className="text-slate-500">Signed in: {userEmail}</span>
+          </div>
         </div>
-        <div className="flex flex-col items-end text-sm text-slate-400">
-          <span className="text-slate-300">{rangeLabel}</span>
-          <span className="text-slate-500">Signed in: {userEmail}</span>
-        </div>
+        <LiveClock />
       </div>
 
       {error && <p className="text-sm text-rose-400">{error}</p>}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {days.map((day) => {
-          const key = formatDayKey(day);
-          const dayItems = grouped[key] || [];
-          return (
-            <div
-              key={key}
-              className="bg-card rounded-2xl shadow-soft p-4 border border-slate-800 flex flex-col gap-3 min-h-[420px]"
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-slate-500">{formatDayHeading(day)}</p>
-                  <p className="text-lg font-semibold text-white">{formatDateFull(day)}</p>
-                </div>
-                <button
-                  className="text-sm text-sky-300 font-medium hover:text-sky-200"
-                  onClick={() => openNew(key)}
-                >
-                  + Add
-                </button>
-              </div>
-              <div className="space-y-2 flex-1 overflow-hidden">
-                {loading && <p className="text-sm text-slate-500">Loading…</p>}
-                {!loading && dayItems.length === 0 && (
-                  <p className="text-sm text-slate-500">Nothing planned.</p>
-                )}
-                {dayItems.map((item) => (
-                  <article
-                    key={item.id}
-                    className="rounded-xl border border-slate-700 px-3 py-2 bg-slate-900 hover:border-sky-500/40 transition-colors"
+      <div className="overflow-x-auto pb-2">
+        <div className="grid grid-flow-col auto-cols-[minmax(260px,1fr)] gap-4 min-w-full">
+          {days.map((day) => {
+            const key = formatDayKey(day);
+            const dayItems = grouped[key] || [];
+            return (
+              <div
+                key={key}
+                className="bg-card rounded-2xl shadow-soft p-4 border border-slate-800 flex flex-col gap-3 min-h-[440px]"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-slate-500">{formatDayHeading(day)}</p>
+                    <p className="text-lg font-semibold text-white">{formatDateFull(day)}</p>
+                  </div>
+                  <button
+                    className="text-sm text-sky-300 font-medium hover:text-sky-200"
+                    onClick={() => openNew(key)}
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0 space-y-1">
-                        <p className="text-sm font-semibold text-slate-100 leading-snug break-words">
-                          {item.timeStart ? `${formatTimeValue(item.timeStart)} ` : '• '}
-                          {item.title}
-                        </p>
-                        {item.details && (
-                          <p className="text-xs text-slate-400 leading-snug break-words">{item.details}</p>
-                        )}
-                        {item.status && item.kind === 'task' && (
-                          <p className="text-[11px] text-slate-500">Status: {item.status}</p>
-                        )}
-                      </div>
-                      <div className="flex flex-col gap-1 text-xs text-sky-300 shrink-0">
-                        {item.kind === 'task' && (
-                          <button
-                            className="hover:text-sky-100"
-                            onClick={() => markStatus(item, item.status === 'done' ? 'todo' : 'done')}
-                          >
-                            {item.status === 'done' ? 'Undo' : 'Done'}
+                    + Add
+                  </button>
+                </div>
+                <div className="space-y-2 flex-1 overflow-hidden">
+                  {loading && <p className="text-sm text-slate-500">Loading…</p>}
+                  {!loading && dayItems.length === 0 && (
+                    <p className="text-sm text-slate-500">Nothing planned.</p>
+                  )}
+                  {dayItems.map((item) => (
+                    <article
+                      key={item.id}
+                      className="rounded-xl border border-slate-700 px-3 py-2 bg-slate-900 hover:border-sky-500/40 transition-colors"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <p className="text-[13px] font-semibold text-slate-100 leading-snug break-words">
+                            {item.timeStart ? `${formatTimeValue(item.timeStart)} ` : '• '}
+                            {item.title}
+                          </p>
+                          {item.details && (
+                            <p className="text-[11px] text-slate-400 leading-snug break-words whitespace-pre-wrap">
+                              {item.details}
+                            </p>
+                          )}
+                          {item.status && item.kind === 'task' && (
+                            <p className="text-[10px] text-slate-500">Status: {item.status}</p>
+                          )}
+                        </div>
+                        <div className="flex flex-col gap-1 text-[11px] text-sky-300 shrink-0 items-end">
+                          {item.kind === 'task' && (
+                            <button
+                              className="hover:text-sky-100"
+                              onClick={() => markStatus(item, item.status === 'done' ? 'todo' : 'done')}
+                            >
+                              {item.status === 'done' ? 'Undo' : 'Done'}
+                            </button>
+                          )}
+                          <button className="hover:text-sky-100" onClick={() => setEditing({ ...item })}>
+                            Edit
                           </button>
-                        )}
-                        <button className="hover:text-sky-100" onClick={() => setEditing({ ...item })}>
-                          Edit
-                        </button>
-                        <button className="text-rose-300 hover:text-rose-200" onClick={() => removeItem(item.id)}>
-                          Delete
-                        </button>
+                          <button className="text-rose-300 hover:text-rose-200" onClick={() => removeItem(item.id)}>
+                            Delete
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  </article>
-                ))}
+                    </article>
+                  ))}
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
 
-      <div className="bg-card rounded-2xl p-4 border border-slate-800 shadow-soft">
-        <div className="flex items-center justify-between">
+      <div className="bg-card rounded-2xl p-4 border border-slate-800 shadow-soft space-y-4">
+        <div className="flex items-center justify-between gap-2">
           <div>
-            <p className="text-sm font-semibold text-white">Voice capture</p>
-            <p className="text-xs text-slate-500">Use your mic to draft an item, then confirm manually.</p>
+            <p className="text-sm font-semibold text-white">AI chat drafts</p>
+            <p className="text-xs text-slate-500">Describe plans in RU/EN. Confirm drafts before saving.</p>
           </div>
-          <button
-            className="rounded-full border border-slate-700 px-3 py-2 text-sm text-slate-100 hover:bg-slate-800 transition-colors"
-            onClick={() => setShowVoice((v) => !v)}
-          >
-            {showVoice ? 'Hide' : 'Open'}
-          </button>
+          <span className="text-[11px] text-slate-500">Server-side OpenRouter</span>
         </div>
-        {showVoice && (
-          <VoiceDraft
-            onDraft={(d) => {
-              setDraft(d);
-              if (d.kind !== 'clarify') openFromDraft(d);
+
+        <div className="flex flex-col gap-2 max-h-64 overflow-y-auto rounded-xl border border-slate-800 bg-slate-950/50 p-3">
+          {chatMessages.map((msg, idx) => (
+            <div
+              key={`${msg.role}-${idx}-${msg.content.slice(0, 12)}`}
+              className={`w-fit max-w-full rounded-xl px-3 py-2 text-sm leading-relaxed break-words ${
+                msg.role === 'user'
+                  ? 'self-end bg-sky-900/60 text-sky-50 border border-sky-800'
+                  : 'self-start bg-slate-900 text-slate-100 border border-slate-800'
+              }`}
+            >
+              <p className="text-[11px] uppercase tracking-wide text-slate-500 mb-1">
+                {msg.role === 'user' ? 'You' : 'Assistant'}
+              </p>
+              <p className="whitespace-pre-wrap text-[13px]">{msg.content}</p>
+            </div>
+          ))}
+        </div>
+        {chatError && <p className="text-sm text-rose-300">{chatError}</p>}
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <input
+            className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-sky-500 focus:outline-none"
+            placeholder="Tomorrow 09:00 call dentist…"
+            value={chatInput}
+            onChange={(e) => setChatInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendChatMessage();
+              }
             }}
           />
-        )}
-        {draft?.kind === 'clarify' && (
-          <div className="mt-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-200">
+          <button
+            className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-500 disabled:opacity-60 disabled:cursor-not-allowed"
+            onClick={sendChatMessage}
+            disabled={chatLoading || !chatInput.trim()}
+          >
+            {chatLoading ? 'Sending…' : 'Send'}
+          </button>
+        </div>
+
+        {clarifications && (
+          <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-200 space-y-2">
             <p className="font-semibold">Need clarification</p>
-            <p className="mt-1 break-words">{draft.title}</p>
-            <ul className="list-disc list-inside mt-2 space-y-1 text-amber-100">
-              {draft.questions?.map((q) => (
+            <ul className="list-disc list-inside space-y-1 text-amber-100">
+              {clarifications.map((q) => (
                 <li key={q} className="break-words">
                   {q}
                 </li>
               ))}
             </ul>
+          </div>
+        )}
+
+        {pendingDrafts.length > 0 && (
+          <div className="space-y-3">
+            <p className="text-sm text-slate-300">Draft proposals</p>
+            <div className="grid gap-3 md:grid-cols-2">
+              {pendingDrafts.map((draft, idx) => (
+                <div
+                  key={`${draft.day}-${draft.title}-${idx}`}
+                  className="rounded-xl border border-slate-800 bg-slate-900/60 p-3 space-y-3"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="space-y-1">
+                      <p className="text-[11px] uppercase tracking-wide text-slate-500">{draft.day}</p>
+                      <p className="text-base font-semibold text-white break-words leading-snug">{draft.title}</p>
+                      {draft.details && (
+                        <p className="text-[11px] text-slate-400 whitespace-pre-wrap break-words">{draft.details}</p>
+                      )}
+                    </div>
+                    <div className="text-right text-[11px] text-slate-400 space-y-1">
+                      <span className="inline-flex rounded-full border border-slate-700 px-2 py-1 text-[10px] uppercase tracking-wide">
+                        {draft.kind}
+                      </span>
+                      <div className="text-slate-500">{draft.status || 'todo'}</div>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2 text-[11px] text-slate-300">
+                    {draft.timeStart && (
+                      <span className="rounded-full bg-slate-800 px-2 py-1 border border-slate-700">
+                        {draft.timeStart}
+                        {draft.timeEnd ? `–${draft.timeEnd}` : ''}
+                      </span>
+                    )}
+                    <span className="rounded-full bg-slate-800 px-2 py-1 border border-slate-700">{draft.day}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      className="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-100 hover:bg-slate-800"
+                      onClick={() => openFromDraft(draft)}
+                    >
+                      Edit draft
+                    </button>
+                    <button
+                      className="rounded-lg bg-sky-600 px-3 py-2 text-sm font-semibold text-white hover:bg-sky-500 disabled:opacity-60"
+                      disabled={confirmingDraft === idx}
+                      onClick={() => confirmDraft(idx, draft)}
+                    >
+                      {confirmingDraft === idx ? 'Saving…' : 'Confirm'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>
@@ -354,7 +534,6 @@ export default function WeekBoard({
           values={editing}
           onClose={() => {
             setEditing(null);
-            setDraft(null);
           }}
           onSave={saveItem}
         />
@@ -494,107 +673,30 @@ function EditModal({
   );
 }
 
-function VoiceDraft({ onDraft }: { onDraft: (draft: Draft) => void }) {
-  const [listening, setListening] = useState(false);
-  const [transcript, setTranscript] = useState('');
-  const [language, setLanguage] = useState<'ru-RU' | 'en-US'>('ru-RU');
-  const [error, setError] = useState<string | null>(null);
+function LiveClock() {
+  const [now, setNow] = useState(new Date());
 
   useEffect(() => {
-    if (!listening) return;
-    // @ts-ignore
-    const SpeechRecognition =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      setError('Speech recognition not available in this browser.');
-      setListening(false);
-      return;
-    }
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
 
-    const recognition = new SpeechRecognition();
-    recognition.continuous = false;
-    recognition.interimResults = true;
-    recognition.lang = language;
-
-    recognition.onresult = (event: any) => {
-      const interim = Array.from(event.results)
-        .map((r: any) => r[0].transcript)
-        .join(' ');
-      setTranscript(interim);
-    };
-
-    recognition.onerror = (event: any) => {
-      setError(event.error || 'Speech error');
-      setListening(false);
-    };
-
-    recognition.onend = () => {
-      setListening(false);
-    };
-
-    recognition.start();
-    return () => recognition.stop();
-  }, [listening, language]);
-
-  const sendDraft = async () => {
-    if (!transcript.trim()) return;
-    setError(null);
-    const res = await fetch('/api/agent/parse', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: transcript }),
-    });
-    if (!res.ok) {
-      setError('Could not parse voice note');
-      return;
-    }
-    const draft = await res.json();
-    onDraft(draft);
-  };
+  const time = new Intl.DateTimeFormat('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).format(now);
+  const date = new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(now);
 
   return (
-    <div className="mt-3 space-y-3">
-      <div className="flex gap-2 items-center flex-wrap">
-        <button
-          className={`px-4 py-2 text-sm rounded-full border transition-colors ${
-            listening
-              ? 'border-rose-400 bg-rose-500/10 text-rose-100'
-              : 'border-slate-700 text-slate-100 hover:bg-slate-800'
-          }`}
-          onClick={() => {
-            setTranscript('');
-            setError(null);
-            setListening((v) => !v);
-          }}
-        >
-          {listening ? 'Stop capture' : 'Start capture'}
-        </button>
-        <button
-          className="px-3 py-2 text-sm rounded-full border border-slate-700 text-slate-100 disabled:opacity-50 hover:bg-slate-800"
-          disabled={!transcript}
-          onClick={sendDraft}
-        >
-          Create draft
-        </button>
-        <div className="flex items-center gap-2 text-xs text-slate-400">
-          <span className="text-slate-300">Language</span>
-          <div className="flex rounded-full border border-slate-700 overflow-hidden">
-            {(['ru-RU', 'en-US'] as const).map((lang) => (
-              <button
-                key={lang}
-                className={`px-3 py-1 text-xs uppercase tracking-wide transition-colors ${
-                  language === lang ? 'bg-slate-800 text-sky-200' : 'text-slate-400 hover:text-slate-200'
-                }`}
-                onClick={() => setLanguage(lang)}
-              >
-                {lang === 'ru-RU' ? 'RU' : 'EN'}
-              </button>
-            ))}
-          </div>
-        </div>
-        {transcript && <span className="text-xs text-slate-400 break-words">{transcript}</span>}
-      </div>
-      {error && <p className="text-sm text-rose-300">{error}</p>}
+    <div className="text-right">
+      <p className="text-3xl font-semibold text-white leading-tight">{time}</p>
+      <p className="text-sm text-slate-400">{date}</p>
     </div>
   );
 }

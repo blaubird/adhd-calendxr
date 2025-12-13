@@ -14,11 +14,23 @@ export type Item = {
 };
 
 export type Draft = {
-  kind: ItemKind | 'clarify';
+  kind: ItemKind;
   title: string;
-  day: string | null;
-  timeStart?: string | null;
-  timeEnd?: string | null;
-  details?: string | null;
-  questions?: string[];
+  day: string;
+  timeStart: string | null;
+  timeEnd: string | null;
+  details: string | null;
+  status: 'todo' | 'done' | 'canceled';
 };
+
+export type DraftClarification = {
+  needClarification: true;
+  questions: string[];
+};
+
+export type DraftResponse = {
+  drafts: Draft[];
+  needClarification?: false;
+};
+
+export type AiChatResult = DraftResponse | DraftClarification;
