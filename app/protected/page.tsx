@@ -19,7 +19,7 @@ export default async function ProtectedPage() {
   const items = normalizeItemList(rawItems);
 
   return (
-    <div className="min-h-screen bg-sand text-slate-100">
+    <div className="min-h-screen bg-sand text-slate-100 overflow-x-hidden">
       <header className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-card shadow-soft sticky top-0 z-10">
         <div>
           <p className="text-sm text-slate-400">Focused 4-day board</p>
