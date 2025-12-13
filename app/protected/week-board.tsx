@@ -7,10 +7,14 @@ import {
   formatDateFull,
   formatDayHeading,
   formatDayKey,
+  formatTimeRange,
   formatTimeValue,
+  nowInTz,
   parseDayKey,
   rangeEndFromAnchor,
+  TIMEZONE,
 } from 'app/lib/datetime';
+import { useSpeechToText } from 'app/lib/use-speech-to-text';
 
 type ItemFormState = {
   id?: number;
@@ -39,7 +43,7 @@ const PIN_STORAGE_KEY = 'calendar-anchor-pinned';
 const LAST_SEEN_DAY_KEY = 'calendar-last-seen';
 
 function todayKey() {
-  return formatDayKey(new Date());
+  return formatDayKey(nowInTz(new Date()));
 }
 
 function sortItems(items: Item[]) {
@@ -85,6 +89,19 @@ export default function WeekBoard({
   const [chatError, setChatError] = useState<string | null>(null);
   const [confirmingDraft, setConfirmingDraft] = useState<number | null>(null);
   const [hydrated, setHydrated] = useState(false);
+  const [voiceLang, setVoiceLang] = useState<'ru-RU' | 'en-GB'>('ru-RU');
+  const [speechText, setSpeechText] = useState('');
+
+  const speech = useSpeechToText({
+    language: voiceLang,
+    onFinal: (text) => {
+      setSpeechText('');
+      setChatInput((prev) => (prev ? `${prev} ${text}` : text));
+    },
+    onInterim: setSpeechText,
+  });
+
+  const rangeEnd = useMemo(() => rangeEndFromAnchor(anchor, VISIBLE_DAYS), [anchor]);
 
   useEffect(() => {
     const savedAnchor = typeof window !== 'undefined' ? localStorage.getItem(ANCHOR_STORAGE_KEY) : null;
@@ -99,11 +116,13 @@ export default function WeekBoard({
 
   useEffect(() => {
     if (!hydrated) return;
-    const end = rangeEndFromAnchor(anchor, VISIBLE_DAYS);
     setLoading(true);
     setError(null);
     const fetchItems = async () => {
-      const res = await fetch(`/api/items?start=${anchor}&end=${end}`);
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug('[items] fetching range', { anchor, end: rangeEnd });
+      }
+      const res = await fetch(`/api/items?start=${anchor}&end=${rangeEnd}`);
       if (!res.ok) {
         setError('Could not load items');
         setLoading(false);
@@ -114,7 +133,7 @@ export default function WeekBoard({
       setLoading(false);
     };
     fetchItems();
-  }, [anchor, hydrated]);
+  }, [anchor, hydrated, rangeEnd]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -223,9 +242,7 @@ export default function WeekBoard({
   const shiftAnchor = (delta: number) => changeAnchor(formatDayKey(addDays(parseDayKey(anchor), delta)), true);
   const goToday = () => changeAnchor(todayKey(), false);
 
-  const rangeLabel = `${formatDateFull(parseDayKey(anchor))} → ${formatDateFull(
-    addDays(parseDayKey(anchor), VISIBLE_DAYS - 1),
-  )}`;
+  const rangeLabel = `${formatDateFull(parseDayKey(anchor))} → ${formatDateFull(parseDayKey(rangeEnd))}`;
 
   async function confirmDraft(index: number, draft: Draft) {
     setConfirmingDraft(index);
@@ -251,7 +268,7 @@ export default function WeekBoard({
       const res = await fetch('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: history }),
+        body: JSON.stringify({ messages: history, range: { start: anchor, end: rangeEnd } }),
       });
 
       if (!res.ok) {
@@ -340,7 +357,7 @@ export default function WeekBoard({
       {error && <p className="text-sm text-rose-400">{error}</p>}
 
       <div className="overflow-x-auto pb-2">
-        <div className="grid grid-flow-col auto-cols-[minmax(260px,1fr)] gap-4 min-w-full">
+        <div className="grid grid-flow-col auto-cols-[minmax(300px,1fr)] gap-4 min-w-full">
           {days.map((day) => {
             const key = formatDayKey(day);
             const dayItems = grouped[key] || [];
@@ -439,19 +456,51 @@ export default function WeekBoard({
           ))}
         </div>
         {chatError && <p className="text-sm text-rose-300">{chatError}</p>}
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <input
-            className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-sky-500 focus:outline-none"
-            placeholder="Tomorrow 09:00 call dentist…"
-            value={chatInput}
-            onChange={(e) => setChatInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                sendChatMessage();
-              }
-            }}
-          />
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+          <div className="flex flex-1 flex-col gap-1">
+            <div className="flex gap-2">
+              <input
+                className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-sky-500 focus:outline-none"
+                placeholder="Сегодня 18:00 покушать рамен / Today 18:00 ramen"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendChatMessage();
+                  }
+                }}
+              />
+              <button
+                className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                  speech.listening
+                    ? 'border-amber-400 text-amber-200 bg-amber-500/10'
+                    : 'border-slate-700 text-slate-100 hover:bg-slate-800'
+                }`}
+                onClick={() => (speech.listening ? speech.stop() : speech.start())}
+                disabled={!speech.supported}
+                title={speech.supported ? 'Voice input' : 'Voice unavailable'}
+              >
+                {speech.listening ? 'Stop mic' : '🎙️ Speak'}
+              </button>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
+              <label className="flex items-center gap-2">
+                <span>Voice language</span>
+                <select
+                  className="rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100"
+                  value={voiceLang}
+                  onChange={(e) => setVoiceLang(e.target.value as 'ru-RU' | 'en-GB')}
+                >
+                  <option value="ru-RU">RU</option>
+                  <option value="en-GB">EN</option>
+                </select>
+              </label>
+              {speechText && <span className="text-amber-200">Interim: {speechText}</span>}
+              {!speech.supported && <span className="text-rose-300">Speech recognition not supported in this browser.</span>}
+              {speech.error && <span className="text-rose-300">{speech.error}</span>}
+            </div>
+          </div>
           <button
             className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-500 disabled:opacity-60 disabled:cursor-not-allowed"
             onClick={sendChatMessage}
@@ -485,8 +534,8 @@ export default function WeekBoard({
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="space-y-1">
-                      <p className="text-[11px] uppercase tracking-wide text-slate-500">{draft.day}</p>
-                      <p className="text-base font-semibold text-white break-words leading-snug">{draft.title}</p>
+                      <p className="text-[11px] uppercase tracking-wide text-slate-500">{formatDateFull(parseDayKey(draft.day))}</p>
+                      <p className="text-[13px] font-semibold text-white break-words leading-snug">{draft.title}</p>
                       {draft.details && (
                         <p className="text-[11px] text-slate-400 whitespace-pre-wrap break-words">{draft.details}</p>
                       )}
@@ -499,13 +548,12 @@ export default function WeekBoard({
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2 text-[11px] text-slate-300">
-                    {draft.timeStart && (
+                    {formatTimeRange(draft.timeStart, draft.timeEnd) && (
                       <span className="rounded-full bg-slate-800 px-2 py-1 border border-slate-700">
-                        {draft.timeStart}
-                        {draft.timeEnd ? `–${draft.timeEnd}` : ''}
+                        {formatTimeRange(draft.timeStart, draft.timeEnd)}
                       </span>
                     )}
-                    <span className="rounded-full bg-slate-800 px-2 py-1 border border-slate-700">{draft.day}</span>
+                    <span className="rounded-full bg-slate-800 px-2 py-1 border border-slate-700">{formatDayKey(parseDayKey(draft.day))}</span>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <button
@@ -688,11 +736,13 @@ function LiveClock() {
     minute: '2-digit',
     second: '2-digit',
     hour12: false,
+    timeZone: TIMEZONE,
   }).format(now);
   const date = new Intl.DateTimeFormat('en-GB', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
+    timeZone: TIMEZONE,
   }).format(now);
 
   return (

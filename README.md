@@ -1,6 +1,6 @@
 # Calendar Brain (Calendxr)
 
-A calm 7-day calendar/task board for one authenticated user, built with Next.js App Router, NextAuth, Drizzle ORM, and Neon Postgres. Voice capture uses the browser Web Speech API to draft items; nothing is stored until you confirm.
+A calm 4-day calendar/task board for one authenticated user, built with Next.js App Router, NextAuth, Drizzle ORM, and Neon Postgres. Voice capture uses the browser Web Speech API to draft items; nothing is stored until you confirm.
 
 ## Getting started
 
@@ -25,6 +25,9 @@ Open http://localhost:3000 – you will be redirected to sign in.
 - `DATABASE_URL` – Postgres connection string (Neon recommended). `POSTGRES_URL` is still respected for backward compatibility.
 - `AUTH_SECRET` – NextAuth secret.
 - `NEXTAUTH_URL` or `AUTH_URL` – set to the deployed URL (`https://calendar.luminiteq.eu`).
+- `OPENROUTER_API_KEY` – server-side key for draft generation.
+- `OPENROUTER_MODEL` – optional override (defaults to `google/gemma-3-27b-it:free`).
+- `APP_TIMEZONE` – optional timezone override; defaults to `Europe/Paris`.
 
 ## Database & migrations
 
@@ -41,7 +44,7 @@ pnpm migrate:push
 ## Core features
 
 - Authenticated-only UI and APIs (NextAuth credentials provider).
-- 7-day sliding board with previous/next/today navigation.
+- 4-day focused board with previous/next/today navigation.
 - Items scoped per user with create/edit/delete and task status updates.
 - Voice capture → parsing endpoint → manual draft confirmation before saving.
 - Zod validation on API inputs and draft parsing contract.
@@ -54,5 +57,6 @@ pnpm migrate:push
 
 ## Notes
 
-- All dates are stored as `YYYY-MM-DD` with Europe/Paris-friendly defaults on the parser. Times are optional and sort timed items first.
+- All dates are stored as `YYYY-MM-DD` with Europe/Paris-friendly defaults on the parser. Times are optional (`HH:mm`, 24-hour) and timed items sort first.
+- AI date grounding: server prompts always include the current Europe/Paris datetime and the visible calendar range. Outputs are validated/normalized to ISO day keys and 24-hour times; unclear inputs trigger clarification instead of guessing.
 - Speech recognition depends on browser support (webkit implementation on Chrome). If unsupported, the UI surfaces an error and you can still add items manually.
