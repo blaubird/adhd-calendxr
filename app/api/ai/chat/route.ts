@@ -8,11 +8,23 @@ import {
   draftListSchema,
   draftOutputSchema,
 } from 'app/lib/validation';
+import { normalizeDayString, normalizeTime, nowInTz, TIMEZONE } from 'app/lib/datetime';
+import { format } from 'date-fns';
+import { enGB } from 'date-fns/locale';
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const DEFAULT_MODEL = 'google/gemma-3-27b-it:free';
 
-const SYSTEM_PROMPT = `You are an assistant that turns free-form RU/EN scheduling requests into JSON drafts for a calendar.\n\nRules:\n- Always respond with pure JSON only.\n- JSON shape: either {"drafts": Draft[]} or {"needClarification": true, "questions": string[]}\n- Draft fields: kind ("task" | "event"), day (YYYY-MM-DD), timeStart (HH:mm or null), timeEnd (HH:mm or null), title, details (or null), status ("todo" | "done" | "canceled", default todo).\n- Use 24-hour times. Interpret dates in European style; prefer ISO date outputs.\n- If the request is unclear, ask concise clarification questions instead of guessing.\n- Never include explanations or code fences; return JSON only.`;
+function buildSystemPrompt(range?: { start: string; end: string }) {
+  const now = nowInTz(new Date());
+  const isoNow = `${format(now, "yyyy-MM-dd'T'HH:mm:ss", { locale: enGB })} (${TIMEZONE})`;
+  const humanNow = `${format(now, 'dd MMM yyyy HH:mm', { locale: enGB })} (${TIMEZONE})`;
+  const rangeText = range
+    ? `Visible calendar window: ${range.start} to ${range.end} (inclusive).`
+    : 'Visible calendar window: current anchor + 4 days (inclusive).';
+
+  return `You are an assistant that turns free-form RU/EN scheduling requests into JSON drafts for a calendar.\nTime zone: ${TIMEZONE}.\nCurrent datetime: ${isoNow} (${humanNow}). ${rangeText}\n\nContract:\n- Always respond with pure JSON only.\n- JSON shape: either {"drafts": Draft[]} or {"needClarification": true, "questions": string[]}\n- Draft fields: kind ("task" | "event"), day (YYYY-MM-DD), timeStart (HH:mm or null), timeEnd (HH:mm or null), title, details (or null), status ("todo" | "done" | "canceled", default todo).\n- Interpret relative phrases like today/tomorrow/weekdays using the configured time zone.\n- Always use 24-hour times and ISO-like dates.\n- If the request is unclear or missing day/time, ask concise clarification questions instead of guessing.\n- Never include explanations or code fences; return JSON only.`;
+}
 
 function extractJsonContent(raw: string) {
   const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
@@ -22,10 +34,19 @@ function extractJsonContent(raw: string) {
 
 function normalizeDraftOutput(data: unknown) {
   const parsed = draftOutputSchema.parse(data);
+  const day = normalizeDayString(parsed.day);
+  const timeStart = normalizeTime(parsed.timeStart);
+  const timeEnd = normalizeTime(parsed.timeEnd);
+
+  if (!day || (parsed.timeStart && !timeStart) || (parsed.timeEnd && !timeEnd)) {
+    throw new Error('Invalid date/time in draft');
+  }
+
   return {
     ...parsed,
-    timeStart: parsed.timeStart ?? null,
-    timeEnd: parsed.timeEnd ?? null,
+    day,
+    timeStart,
+    timeEnd,
     details: parsed.details ?? null,
     status: parsed.status ?? 'todo',
   };
@@ -75,7 +96,7 @@ export async function POST(request: Request) {
       body: JSON.stringify({
         model,
         messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'system', content: buildSystemPrompt(parsed.data.range) },
           ...parsed.data.messages,
         ],
         temperature: 0.2,
@@ -93,7 +114,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid AI response' }, { status: 502 });
     }
 
-    const parsedContent = normalizeResult(extractJsonContent(content));
+    let parsedContent;
+    try {
+      parsedContent = normalizeResult(extractJsonContent(content));
+    } catch (err) {
+      return NextResponse.json({
+        needClarification: true,
+        questions: ['Please confirm the exact day (YYYY-MM-DD) and 24h time for this request.'],
+      });
+    }
     return NextResponse.json(parsedContent);
   } catch (error: any) {
     if (error?.name === 'AbortError') {

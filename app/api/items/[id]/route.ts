@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from 'app/auth';
 import { deleteItem, updateItem } from 'app/db';
 import { itemInputSchema } from 'app/lib/validation';
+import { normalizeItemRecord } from 'app/lib/items';
 
 export async function PUT(request: Request, { params }: { params: { id: string } }) {
   const session = await auth();
@@ -15,7 +16,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
 
   const [item] = await updateItem(Number(session.user.id), Number(params.id), result.data);
   if (!item) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  return NextResponse.json({ item });
+  return NextResponse.json({ item: normalizeItemRecord(item) });
 }
 
 export async function DELETE(request: Request, { params }: { params: { id: string } }) {

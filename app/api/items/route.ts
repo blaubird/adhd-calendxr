@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from 'app/auth';
 import { createItem, listItemsInRange } from 'app/db';
 import { itemInputSchema } from 'app/lib/validation';
+import { normalizeItemList, normalizeItemRecord } from 'app/lib/items';
 
 export async function GET(request: Request) {
   const session = await auth();
@@ -16,7 +17,7 @@ export async function GET(request: Request) {
   }
 
   const items = await listItemsInRange(Number(session.user.id), start, end);
-  return NextResponse.json({ items });
+  return NextResponse.json({ items: normalizeItemList(items) });
 }
 
 export async function POST(request: Request) {
@@ -30,5 +31,5 @@ export async function POST(request: Request) {
   }
 
   const [item] = await createItem(Number(session.user.id), result.data);
-  return NextResponse.json({ item });
+  return NextResponse.json({ item: normalizeItemRecord(item) });
 }
