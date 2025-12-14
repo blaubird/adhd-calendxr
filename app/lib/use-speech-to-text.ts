@@ -8,12 +8,28 @@ type Options = {
   onInterim?: (text: string) => void;
 };
 
+export const SPEECH_SILENCE_TIMEOUT_MS = 12000;
+
 export function useSpeechToText(options: Options) {
   const { language, onFinal, onInterim } = options;
   const [supported, setSupported] = useState(false);
   const [listening, setListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const recognitionRef = useRef<any>(null);
+  const keepAliveRef = useRef(false);
+  const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastFinalRef = useRef('');
+
+  const resetSilenceTimer = useCallback(() => {
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+    }
+    silenceTimerRef.current = setTimeout(() => {
+      keepAliveRef.current = false;
+      recognitionRef.current?.stop();
+      setListening(false);
+    }, SPEECH_SILENCE_TIMEOUT_MS);
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -25,7 +41,7 @@ export function useSpeechToText(options: Options) {
     }
     setSupported(true);
     const instance = new (Speech as any)();
-    instance.continuous = false;
+    instance.continuous = true;
     instance.interimResults = true;
     instance.lang = language;
     recognitionRef.current = instance;
@@ -52,29 +68,59 @@ export function useSpeechToText(options: Options) {
           interim += res[0].transcript;
         }
       }
+      resetSilenceTimer();
       if (interim && onInterim) onInterim(interim.trim());
-      if (finalText && onFinal) onFinal(finalText.trim());
+      const trimmedFinal = finalText.trim();
+      if (trimmedFinal && trimmedFinal !== lastFinalRef.current) {
+        lastFinalRef.current = trimmedFinal;
+        if (onInterim) onInterim('');
+        if (onFinal) onFinal(trimmedFinal);
+      }
     };
 
     recognition.onerror = (event: any) => {
       setError(event.error || 'Speech recognition error');
-      setListening(false);
-    };
-
-    recognition.onend = () => {
+      keepAliveRef.current = false;
       setListening(false);
       if (onInterim) onInterim('');
     };
-  }, [onFinal, onInterim]);
+
+    recognition.onend = () => {
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+      }
+      if (keepAliveRef.current) {
+        setTimeout(() => {
+          try {
+            recognition.start();
+            setListening(true);
+          } catch (err) {
+            if (process.env.NODE_ENV !== 'production') {
+              console.debug('[speech] restart failed', err);
+            }
+          }
+        }, 300);
+      } else {
+        setListening(false);
+        if (onInterim) onInterim('');
+      }
+    };
+  }, [onFinal, onInterim, resetSilenceTimer]);
 
   const start = useCallback(() => {
     if (!recognitionRef.current) return;
     setError(null);
+    keepAliveRef.current = true;
     recognitionRef.current.start();
     setListening(true);
-  }, []);
+    resetSilenceTimer();
+  }, [resetSilenceTimer]);
 
   const stop = useCallback(() => {
+    keepAliveRef.current = false;
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+    }
     recognitionRef.current?.stop();
   }, []);
 

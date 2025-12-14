@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { addDays } from 'date-fns';
 import { Draft, Item, ItemKind, TaskStatus } from 'app/types';
 import {
@@ -11,10 +11,10 @@ import {
   formatTimeRange,
   formatTime24,
   formatTimeValue,
-  nowInTz,
   parseDayEU,
   parseDayKey,
   rangeEndFromAnchor,
+  todayKey,
   TIMEZONE,
 } from 'app/lib/datetime';
 import { useSpeechToText } from 'app/lib/use-speech-to-text';
@@ -46,10 +46,85 @@ const PIN_STORAGE_KEY = 'calendar-anchor-pinned';
 const LAST_SEEN_DAY_KEY = 'calendar-last-seen';
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0'));
-const MINUTES = Array.from({ length: 60 }, (_, i) => i.toString().padStart(2, '0'));
+const MINUTES = Array.from({ length: 12 }, (_, i) => (i * 5).toString().padStart(2, '0'));
 
 function pad2(value: string) {
   return value.padStart(2, '0');
+}
+
+function OptionDropdown({
+  value,
+  placeholder,
+  options,
+  onChange,
+}: {
+  value: string;
+  placeholder: string;
+  options: string[];
+  onChange: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const listRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const handleClick = (event: MouseEvent) => {
+      if (
+        triggerRef.current &&
+        (triggerRef.current === event.target || triggerRef.current.contains(event.target as Node))
+      ) {
+        return;
+      }
+      if (listRef.current && listRef.current.contains(event.target as Node)) return;
+      setOpen(false);
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  return (
+    <div className="relative min-w-[80px]">
+      <button
+        ref={triggerRef}
+        type="button"
+        className="flex h-10 w-full items-center justify-between rounded-lg border border-slate-700 bg-slate-900 px-3 text-sm text-slate-100 hover:border-sky-500/60"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span className="truncate">{value || placeholder}</span>
+        <span className="text-slate-500">▾</span>
+      </button>
+      {open && (
+        <div
+          ref={listRef}
+          className="absolute left-0 top-full z-30 mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 shadow-soft max-h-[50vh] md:max-h-80 overflow-y-auto overscroll-contain"
+        >
+          <button
+            type="button"
+            className="block w-full px-3 py-2 text-left text-sm text-slate-200 hover:bg-slate-800"
+            onClick={() => {
+              onChange('');
+              setOpen(false);
+            }}
+          >
+            {placeholder}
+          </button>
+          {options.map((opt) => (
+            <button
+              key={opt}
+              type="button"
+              className="block w-full px-3 py-2 text-left text-sm text-slate-100 hover:bg-slate-800"
+              onClick={() => {
+                onChange(opt);
+                setOpen(false);
+              }}
+            >
+              {opt}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function TimeField({
@@ -86,31 +161,9 @@ function TimeField({
     <label className="flex flex-col gap-1">
       <span className="text-slate-300">{label}</span>
       <div className="flex items-center gap-2">
-        <select
-          className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100"
-          value={hour}
-          onChange={(e) => handleHourChange(e.target.value)}
-        >
-          <option value="">HH</option>
-          {HOURS.map((h) => (
-            <option key={h} value={h}>
-              {h}
-            </option>
-          ))}
-        </select>
+        <OptionDropdown value={hour} placeholder="HH" options={HOURS} onChange={handleHourChange} />
         <span className="text-slate-500">:</span>
-        <select
-          className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100"
-          value={minute}
-          onChange={(e) => handleMinuteChange(e.target.value)}
-        >
-          <option value="">MM</option>
-          {MINUTES.map((m) => (
-            <option key={m} value={m}>
-              {m}
-            </option>
-          ))}
-        </select>
+        <OptionDropdown value={minute} placeholder="MM" options={MINUTES} onChange={handleMinuteChange} />
         <button
           type="button"
           className="text-[11px] text-slate-400 hover:text-slate-200"
@@ -123,8 +176,58 @@ function TimeField({
   );
 }
 
-function todayKey() {
-  return formatDayKey(nowInTz(new Date()));
+function ChatInputRow({
+  value,
+  onChange,
+  onSend,
+  disabled,
+  speech,
+  placeholder,
+  sending,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onSend: () => void;
+  disabled: boolean;
+  speech: ReturnType<typeof useSpeechToText>;
+  placeholder: string;
+  sending?: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-2 min-w-0 flex-nowrap">
+      <input
+        className="flex-1 min-w-0 h-10 rounded-lg border border-slate-700 bg-slate-900 px-3 text-sm text-slate-100 focus:border-sky-500 focus:outline-none"
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            onSend();
+          }
+        }}
+      />
+      <button
+        className={`inline-flex h-10 items-center justify-center rounded-lg border px-3 text-sm font-medium transition-colors shrink-0 ${
+          speech.listening
+            ? 'border-amber-400 text-amber-200 bg-amber-500/10'
+            : 'border-slate-700 text-slate-100 hover:bg-slate-800'
+        }`}
+        onClick={() => (speech.listening ? speech.stop() : speech.start())}
+        disabled={!speech.supported}
+        title={speech.supported ? 'Voice input' : 'Voice unavailable'}
+      >
+        {speech.listening ? 'Stop mic' : '🎙️ Speak'}
+      </button>
+      <button
+        className="inline-flex h-10 items-center justify-center rounded-lg bg-sky-600 px-4 text-sm font-semibold text-white hover:bg-sky-500 disabled:opacity-60 disabled:cursor-not-allowed shrink-0"
+        onClick={onSend}
+        disabled={disabled}
+      >
+        {sending ? 'Sending…' : 'Send'}
+      </button>
+    </div>
+  );
 }
 
 function sortItems(items: Item[]) {
@@ -388,20 +491,9 @@ export default function WeekBoard({
       }
 
       const data = await res.json();
-      if (data.needClarification) {
-        setClarifications(data.questions || []);
-        setPendingDrafts([]);
-        setChatMessages((msgs) => [
-          ...msgs,
-          {
-            role: 'assistant',
-            content: `Need clarification:\n${(data.questions || []).join('\n')}`,
-          },
-        ]);
-        return;
-      }
+      const hasDrafts = Array.isArray(data.drafts) && data.drafts.length > 0;
 
-      if (data.drafts && Array.isArray(data.drafts)) {
+      if (hasDrafts) {
         setPendingDrafts(data.drafts);
         setClarifications(null);
         setChatMessages((msgs) => [
@@ -409,6 +501,19 @@ export default function WeekBoard({
           {
             role: 'assistant',
             content: `Created ${data.drafts.length} draft(s). Review and confirm below.`,
+          },
+        ]);
+        return;
+      }
+
+      if (data.needClarification && !hasDrafts) {
+        setClarifications(data.questions || []);
+        setPendingDrafts([]);
+        setChatMessages((msgs) => [
+          ...msgs,
+          {
+            role: 'assistant',
+            content: `Need clarification:\n${(data.questions || []).join('\n')}`,
           },
         ]);
         return;
@@ -438,7 +543,7 @@ export default function WeekBoard({
               className="inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-2 text-sm text-slate-100 hover:bg-slate-800 transition-colors"
               onClick={() => shiftAnchor(-1)}
             >
-              <span className="text-xl leading-none w-4 text-center relative -top-px">&lt;</span>
+              <span className="text-xl leading-none w-4 text-center">&lt;</span>
               <span className="leading-none">Previous</span>
             </button>
             <button
@@ -452,7 +557,7 @@ export default function WeekBoard({
               onClick={() => shiftAnchor(1)}
             >
               <span className="leading-none">Next</span>
-              <span className="text-xl leading-none w-4 text-center relative -top-px">&gt;</span>
+              <span className="text-xl leading-none w-4 text-center">&gt;</span>
             </button>
           </div>
           <div className="flex flex-wrap items-center gap-3 text-sm text-slate-400">
@@ -582,61 +687,35 @@ export default function WeekBoard({
           ))}
         </div>
         {chatError && <p className="text-sm text-rose-300">{chatError}</p>}
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3 min-w-0">
-          <div className="flex flex-1 flex-col gap-1 min-w-0">
-            <div className="flex items-center gap-2 min-w-0">
-              <input
-                className="flex-1 min-w-0 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-sky-500 focus:outline-none h-10"
-                placeholder="Сегодня 18:00 покушать рамен / Today 18:00 ramen"
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    sendChatMessage();
-                  }
-                }}
-              />
-              <button
-                className={`inline-flex h-10 items-center justify-center rounded-lg border px-3 text-sm font-medium transition-colors shrink-0 ${
-                  speech.listening
-                    ? 'border-amber-400 text-amber-200 bg-amber-500/10'
-                    : 'border-slate-700 text-slate-100 hover:bg-slate-800'
-                }`}
-                onClick={() => (speech.listening ? speech.stop() : speech.start())}
-                disabled={!speech.supported}
-                title={speech.supported ? 'Voice input' : 'Voice unavailable'}
-              >
-                {speech.listening ? 'Stop mic' : '🎙️ Speak'}
-              </button>
-            </div>
-            <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
-              <label className="flex items-center gap-2">
-                <span>Voice language</span>
-                <select
-                  className="rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100"
-                  value={voiceLang}
-                  onChange={(e) => setVoiceLang(e.target.value as 'ru-RU' | 'en-GB')}
-                >
-                  <option value="ru-RU">RU</option>
-                  <option value="en-GB">EN</option>
-                </select>
-              </label>
-              {speechText && <span className="text-amber-200">Interim: {speechText}</span>}
-              {!speech.supported && <span className="text-rose-300">Speech recognition not supported in this browser.</span>}
-              {speech.error && <span className="text-rose-300">{speech.error}</span>}
-            </div>
-          </div>
-          <button
-            className="inline-flex h-10 items-center justify-center rounded-lg bg-sky-600 px-4 text-sm font-semibold text-white hover:bg-sky-500 disabled:opacity-60 disabled:cursor-not-allowed shrink-0"
-            onClick={sendChatMessage}
+        <div className="space-y-2">
+          <ChatInputRow
+            value={chatInput}
+            onChange={setChatInput}
+            onSend={sendChatMessage}
             disabled={chatLoading || !chatInput.trim()}
-          >
-            {chatLoading ? 'Sending…' : 'Send'}
-          </button>
+            speech={speech}
+            placeholder="Сегодня 18:00 покушать рамен / Today 18:00 ramen"
+            sending={chatLoading}
+          />
+          <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
+            <label className="flex items-center gap-2">
+              <span>Voice language</span>
+              <select
+                className="rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100"
+                value={voiceLang}
+                onChange={(e) => setVoiceLang(e.target.value as 'ru-RU' | 'en-GB')}
+              >
+                <option value="ru-RU">RU</option>
+                <option value="en-GB">EN</option>
+              </select>
+            </label>
+            {speechText && <span className="text-amber-200">Interim: {speechText}</span>}
+            {!speech.supported && <span className="text-rose-300">Speech recognition not supported in this browser.</span>}
+            {speech.error && <span className="text-rose-300">{speech.error}</span>}
+          </div>
         </div>
 
-        {clarifications && (
+        {clarifications && pendingDrafts.length === 0 && (
           <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-200 space-y-2">
             <p className="font-semibold">Need clarification</p>
             <ul className="list-disc list-inside space-y-1 text-amber-100">

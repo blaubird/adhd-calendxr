@@ -1,14 +1,9 @@
 import { NextResponse } from 'next/server';
 
 import { auth } from 'app/auth';
-import {
-  chatRequestSchema,
-  chatResultSchema,
-  clarificationSchema,
-  draftListSchema,
-  draftOutputSchema,
-} from 'app/lib/validation';
-import { normalizeDayString, normalizeTime, nowInTz, TIMEZONE } from 'app/lib/datetime';
+import { chatRequestSchema } from 'app/lib/validation';
+import { nowInTz, TIMEZONE, todayKey } from 'app/lib/datetime';
+import { normalizeAiResponse } from 'app/lib/ai/normalize';
 import { format } from 'date-fns';
 import { enGB } from 'date-fns/locale';
 
@@ -23,46 +18,13 @@ function buildSystemPrompt(range?: { start: string; end: string }) {
     ? `Visible calendar window: ${range.start} to ${range.end} (inclusive).`
     : 'Visible calendar window: current anchor + 4 days (inclusive).';
 
-  return `You are an assistant that turns free-form RU/EN scheduling requests into JSON drafts for a calendar.\nTime zone: ${TIMEZONE}.\nCurrent datetime: ${isoNow} (${humanNow}). ${rangeText}\n\nContract:\n- Always respond with pure JSON only.\n- JSON shape: either {"drafts": Draft[]} or {"needClarification": true, "questions": string[]}\n- Draft fields: kind ("task" | "event"), day (YYYY-MM-DD), timeStart (HH:mm or null), timeEnd (HH:mm or null), title, details (or null), status ("todo" | "done" | "canceled", default todo).\n- Interpret relative phrases like today/tomorrow/weekdays using the configured time zone.\n- Always use 24-hour times and ISO-like dates.\n- If the request is unclear or missing day/time, ask concise clarification questions instead of guessing.\n- Never include explanations or code fences; return JSON only.`;
+  return `You are an assistant that turns free-form RU/EN scheduling requests into JSON drafts for a calendar.\nTime zone: ${TIMEZONE}.\nCurrent datetime: ${isoNow} (${humanNow}). ${rangeText}\n\nContract:\n- Always respond with pure JSON only.\n- JSON shape: either {"drafts": Draft[]} or {"needClarification": true, "questions": string[]}\n- Draft fields: kind ("task" | "event"), day (YYYY-MM-DD), timeStart (HH:mm or null), timeEnd (HH:mm or null), title, details (or null), status ("todo" | "done" | "canceled", default todo).\n- Interpret relative phrases like today/tomorrow/weekdays/сегодня/завтра relative to the configured time zone.\n- Use 24-hour times and YYYY-MM-DD dates.\n- If no time is present, create a task with timeStart/timeEnd = null.\n- If day is missing, default to today in the configured time zone.\n- Only ask clarification if you cannot create any drafts; otherwise, never ask questions.\n- Never include explanations or code fences; return JSON only.`;
 }
 
 function extractJsonContent(raw: string) {
   const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
   const target = fenced ? fenced[1] : raw;
   return JSON.parse(target);
-}
-
-function normalizeDraftOutput(data: unknown) {
-  const parsed = draftOutputSchema.parse(data);
-  const day = normalizeDayString(parsed.day);
-  const timeStart = normalizeTime(parsed.timeStart);
-  const timeEnd = normalizeTime(parsed.timeEnd);
-
-  if (!day || (parsed.timeStart && !timeStart) || (parsed.timeEnd && !timeEnd)) {
-    throw new Error('Invalid date/time in draft');
-  }
-
-  return {
-    ...parsed,
-    day,
-    timeStart,
-    timeEnd,
-    details: parsed.details ?? null,
-    status: parsed.status ?? 'todo',
-  };
-}
-
-function normalizeResult(payload: unknown) {
-  const result = chatResultSchema.parse(payload);
-  if (clarificationSchema.safeParse(result).success) {
-    return result;
-  }
-
-  const list = draftListSchema.parse(result);
-  return {
-    drafts: list.drafts.map(normalizeDraftOutput),
-    needClarification: false as const,
-  };
 }
 
 export async function POST(request: Request) {
@@ -116,11 +78,15 @@ export async function POST(request: Request) {
 
     let parsedContent;
     try {
-      parsedContent = normalizeResult(extractJsonContent(content));
+      const defaultDay = todayKey(nowInTz(new Date()));
+      parsedContent = normalizeAiResponse(extractJsonContent(content), { defaultDay });
     } catch (err) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.error('[ai] response parse failed', err);
+      }
       return NextResponse.json({
         needClarification: true,
-        questions: ['Please confirm the exact day (YYYY-MM-DD) and 24h time for this request.'],
+        questions: ['Please confirm the title so I can draft it.'],
       });
     }
     return NextResponse.json(parsedContent);
