@@ -45,6 +45,84 @@ const ANCHOR_STORAGE_KEY = 'calendar-anchor';
 const PIN_STORAGE_KEY = 'calendar-anchor-pinned';
 const LAST_SEEN_DAY_KEY = 'calendar-last-seen';
 
+const HOURS = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0'));
+const MINUTES = Array.from({ length: 60 }, (_, i) => i.toString().padStart(2, '0'));
+
+function pad2(value: string) {
+  return value.padStart(2, '0');
+}
+
+function TimeField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string | null;
+  onChange: (v: string | null) => void;
+}) {
+  const normalized = formatTime24(value) || null;
+  const [hour, minute] = normalized?.split(':') ?? ['', ''];
+
+  const handleHourChange = (nextHour: string) => {
+    if (!nextHour) {
+      onChange(null);
+      return;
+    }
+    const nextMinute = minute || '00';
+    onChange(`${pad2(nextHour)}:${pad2(nextMinute)}`);
+  };
+
+  const handleMinuteChange = (nextMinute: string) => {
+    if (!nextMinute && !hour) {
+      onChange(null);
+      return;
+    }
+    const nextHour = hour || '00';
+    onChange(`${pad2(nextHour)}:${pad2(nextMinute || '00')}`);
+  };
+
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="text-slate-300">{label}</span>
+      <div className="flex items-center gap-2">
+        <select
+          className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100"
+          value={hour}
+          onChange={(e) => handleHourChange(e.target.value)}
+        >
+          <option value="">HH</option>
+          {HOURS.map((h) => (
+            <option key={h} value={h}>
+              {h}
+            </option>
+          ))}
+        </select>
+        <span className="text-slate-500">:</span>
+        <select
+          className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100"
+          value={minute}
+          onChange={(e) => handleMinuteChange(e.target.value)}
+        >
+          <option value="">MM</option>
+          {MINUTES.map((m) => (
+            <option key={m} value={m}>
+              {m}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          className="text-[11px] text-slate-400 hover:text-slate-200"
+          onClick={() => onChange(null)}
+        >
+          Clear
+        </button>
+      </div>
+    </label>
+  );
+}
+
 function todayKey() {
   return formatDayKey(nowInTz(new Date()));
 }
@@ -357,24 +435,24 @@ export default function WeekBoard({
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
             <button
-              className="rounded-full border border-slate-700 px-3 py-2 text-sm text-slate-100 hover:bg-slate-800 transition-colors flex items-center gap-1"
+              className="inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-2 text-sm text-slate-100 hover:bg-slate-800 transition-colors"
               onClick={() => shiftAnchor(-1)}
             >
-              <span className="text-xl leading-none">&lt;</span>
+              <span className="text-xl leading-none w-4 text-center relative -top-px">&lt;</span>
               <span className="leading-none">Previous</span>
             </button>
             <button
-              className="rounded-full border border-slate-700 px-3 py-2 text-sm text-slate-100 hover:bg-slate-800 transition-colors"
+              className="inline-flex items-center justify-center rounded-full border border-slate-700 px-3 py-2 text-sm text-slate-100 hover:bg-slate-800 transition-colors"
               onClick={goToday}
             >
               Today
             </button>
             <button
-              className="rounded-full border border-slate-700 px-3 py-2 text-sm text-slate-100 hover:bg-slate-800 transition-colors flex items-center gap-1"
+              className="inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-2 text-sm text-slate-100 hover:bg-slate-800 transition-colors"
               onClick={() => shiftAnchor(1)}
             >
               <span className="leading-none">Next</span>
-              <span className="text-xl leading-none">&gt;</span>
+              <span className="text-xl leading-none w-4 text-center relative -top-px">&gt;</span>
             </button>
           </div>
           <div className="flex flex-wrap items-center gap-3 text-sm text-slate-400">
@@ -414,24 +492,40 @@ export default function WeekBoard({
                   {!loading && dayItems.length === 0 && (
                     <p className="text-sm text-slate-500">Nothing planned.</p>
                   )}
-                  {dayItems.map((item) => (
+                  {dayItems.map((item) => {
+                    const isDone = item.kind === 'task' && item.status === 'done';
+                    return (
                     <article
                       key={item.id}
                       className="rounded-xl border border-slate-700 px-3 py-2 bg-slate-900 hover:border-sky-500/40 transition-colors"
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1 min-w-0 space-y-1">
-                          <p className="text-[13px] font-semibold text-slate-100 leading-snug break-words">
+                          <p
+                            className={`text-[13px] font-semibold leading-snug break-words ${
+                              isDone ? 'line-through text-slate-400' : 'text-slate-100'
+                            }`}
+                          >
                             {item.timeStart ? `${formatTimeValue(item.timeStart)} ` : '• '}
                             {item.title}
                           </p>
                           {item.details && (
-                            <p className="text-[11px] text-slate-400 leading-snug break-words whitespace-pre-wrap">
+                            <p
+                              className={`text-[11px] leading-snug break-words whitespace-pre-wrap ${
+                                isDone ? 'line-through text-slate-500 opacity-80' : 'text-slate-400'
+                              }`}
+                            >
                               {item.details}
                             </p>
                           )}
                           {item.status && item.kind === 'task' && (
-                            <p className="text-[10px] text-slate-500">Status: {item.status}</p>
+                            <p
+                              className={`text-[10px] ${
+                                isDone ? 'text-slate-500 line-through opacity-80' : 'text-slate-500'
+                              }`}
+                            >
+                              Status: {item.status}
+                            </p>
                           )}
                         </div>
                         <div className="flex flex-col gap-1 text-[11px] text-sky-300 shrink-0 items-end">
@@ -452,7 +546,8 @@ export default function WeekBoard({
                         </div>
                       </div>
                     </article>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             );
@@ -489,9 +584,9 @@ export default function WeekBoard({
         {chatError && <p className="text-sm text-rose-300">{chatError}</p>}
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3 min-w-0">
           <div className="flex flex-1 flex-col gap-1 min-w-0">
-            <div className="flex gap-2 min-w-0">
+            <div className="flex items-center gap-2 min-w-0">
               <input
-                className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-sky-500 focus:outline-none"
+                className="flex-1 min-w-0 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-sky-500 focus:outline-none h-10"
                 placeholder="Сегодня 18:00 покушать рамен / Today 18:00 ramen"
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
@@ -503,7 +598,7 @@ export default function WeekBoard({
                 }}
               />
               <button
-                className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors shrink-0 ${
+                className={`inline-flex h-10 items-center justify-center rounded-lg border px-3 text-sm font-medium transition-colors shrink-0 ${
                   speech.listening
                     ? 'border-amber-400 text-amber-200 bg-amber-500/10'
                     : 'border-slate-700 text-slate-100 hover:bg-slate-800'
@@ -533,7 +628,7 @@ export default function WeekBoard({
             </div>
           </div>
           <button
-            className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-500 disabled:opacity-60 disabled:cursor-not-allowed shrink-0"
+            className="inline-flex h-10 items-center justify-center rounded-lg bg-sky-600 px-4 text-sm font-semibold text-white hover:bg-sky-500 disabled:opacity-60 disabled:cursor-not-allowed shrink-0"
             onClick={sendChatMessage}
             disabled={chatLoading || !chatInput.trim()}
           >
@@ -708,26 +803,8 @@ function EditModal({
             />
             {dayError && <span className="text-[11px] text-rose-300">{dayError}</span>}
           </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-slate-300">Start</span>
-            <input
-              type="time"
-              lang="fr-FR"
-              className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100"
-              value={formatTimeValue(local.timeStart)}
-              onChange={(e) => update('timeStart', e.target.value || null)}
-            />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-slate-300">End</span>
-            <input
-              type="time"
-              lang="fr-FR"
-              className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100"
-              value={formatTimeValue(local.timeEnd)}
-              onChange={(e) => update('timeEnd', e.target.value || null)}
-            />
-          </label>
+          <TimeField label="Start" value={local.timeStart} onChange={(v) => update('timeStart', v)} />
+          <TimeField label="End" value={local.timeEnd} onChange={(v) => update('timeEnd', v)} />
           <label className="flex flex-col gap-1 col-span-2">
             <span className="text-slate-300">Title</span>
             <input
