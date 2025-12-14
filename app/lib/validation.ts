@@ -15,11 +15,11 @@ export const itemInputSchema = z
 export type ItemInput = z.infer<typeof itemInputSchema>;
 
 export const draftOutputSchema = z.object({
-  kind: z.enum(['event', 'task']),
+  kind: z.enum(['event', 'task']).default('task'),
   title: z.string().min(1).max(255),
-  day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  timeStart: z.string().regex(/^\d{2}:\d{2}$/).nullable(),
-  timeEnd: z.string().regex(/^\d{2}:\d{2}$/).nullable(),
+  day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  timeStart: z.string().regex(/^\d{2}:\d{2}$/).nullable().optional(),
+  timeEnd: z.string().regex(/^\d{2}:\d{2}$/).nullable().optional(),
   details: z.string().nullable().optional().transform((v) => (v === undefined ? null : v)),
   status: z.enum(['todo', 'done', 'canceled']).default('todo'),
 });
@@ -27,6 +27,7 @@ export const draftOutputSchema = z.object({
 export const draftListSchema = z.object({
   drafts: z.array(draftOutputSchema).min(1),
   needClarification: z.literal(false).optional(),
+  questions: z.array(z.string()).optional(),
 });
 
 export const clarificationSchema = z.object({

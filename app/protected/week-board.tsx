@@ -8,14 +8,14 @@ import {
   formatDayEU,
   formatDayHeading,
   formatDayKey,
-  formatTimeRange,
+  formatTimeRange24,
   formatTime24,
   formatTimeValue,
-  nowInTz,
   parseDayEU,
   parseDayKey,
   rangeEndFromAnchor,
   TIMEZONE,
+  todayKey,
 } from 'app/lib/datetime';
 import { useSpeechToText } from 'app/lib/use-speech-to-text';
 
@@ -48,6 +48,65 @@ const LAST_SEEN_DAY_KEY = 'calendar-last-seen';
 const HOURS = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0'));
 const MINUTES = Array.from({ length: 60 }, (_, i) => i.toString().padStart(2, '0'));
 
+function TimeDropdown({
+  value,
+  onSelect,
+  placeholder,
+  options,
+  label,
+}: {
+  value: string;
+  onSelect: (value: string) => void;
+  placeholder: string;
+  options: string[];
+  label: string;
+}) {
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    const close = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest(`[data-dropdown-for="${label}"]`)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [label]);
+
+  return (
+    <div className="relative" data-dropdown-for={label}>
+      <button
+        type="button"
+        className="flex h-10 min-w-[72px] items-center justify-between rounded-lg border border-slate-700 bg-slate-900 px-3 text-sm text-slate-100 hover:border-sky-500/70"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span className="truncate">{value || placeholder}</span>
+        <span className="text-[10px] text-slate-400">▾</span>
+      </button>
+      {open && (
+        <div className="absolute left-0 right-0 z-20 mt-1 max-h-[50vh] overflow-y-auto overscroll-contain rounded-lg border border-slate-700 bg-slate-900 shadow-xl">
+          {options.map((opt) => (
+            <button
+              type="button"
+              key={opt}
+              className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-slate-800 ${
+                opt === value ? 'text-sky-200 bg-slate-800/70' : 'text-slate-100'
+              }`}
+              onClick={() => {
+                onSelect(opt);
+                setOpen(false);
+              }}
+            >
+              <span>{opt}</span>
+              {opt === value && <span className="text-[10px] text-sky-300">●</span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function pad2(value: string) {
   return value.padStart(2, '0');
 }
@@ -78,39 +137,31 @@ function TimeField({
       onChange(null);
       return;
     }
-    const nextHour = hour || '00';
-    onChange(`${pad2(nextHour)}:${pad2(nextMinute || '00')}`);
+    if (!hour) return;
+    const nextHour = hour;
+    const minuteValue = nextMinute || '00';
+    onChange(`${pad2(nextHour)}:${pad2(minuteValue)}`);
   };
 
   return (
     <label className="flex flex-col gap-1">
       <span className="text-slate-300">{label}</span>
       <div className="flex items-center gap-2">
-        <select
-          className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100"
+        <TimeDropdown
+          label={`${label}-hour`}
           value={hour}
-          onChange={(e) => handleHourChange(e.target.value)}
-        >
-          <option value="">HH</option>
-          {HOURS.map((h) => (
-            <option key={h} value={h}>
-              {h}
-            </option>
-          ))}
-        </select>
+          placeholder="HH"
+          options={HOURS}
+          onSelect={handleHourChange}
+        />
         <span className="text-slate-500">:</span>
-        <select
-          className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100"
+        <TimeDropdown
+          label={`${label}-minute`}
           value={minute}
-          onChange={(e) => handleMinuteChange(e.target.value)}
-        >
-          <option value="">MM</option>
-          {MINUTES.map((m) => (
-            <option key={m} value={m}>
-              {m}
-            </option>
-          ))}
-        </select>
+          placeholder="MM"
+          options={MINUTES}
+          onSelect={handleMinuteChange}
+        />
         <button
           type="button"
           className="text-[11px] text-slate-400 hover:text-slate-200"
@@ -121,10 +172,6 @@ function TimeField({
       </div>
     </label>
   );
-}
-
-function todayKey() {
-  return formatDayKey(nowInTz(new Date()));
 }
 
 function sortItems(items: Item[]) {
@@ -138,6 +185,64 @@ function sortItems(items: Item[]) {
     }
     return a.id - b.id;
   });
+}
+
+function ChatInputRow({
+  value,
+  placeholder,
+  onChange,
+  onSend,
+  onEnter,
+  speech,
+  sending,
+}: {
+  value: string;
+  placeholder: string;
+  onChange: (v: string) => void;
+  onSend: () => void;
+  onEnter: () => void;
+  speech: ReturnType<typeof useSpeechToText>;
+  sending: boolean;
+}) {
+  return (
+    <div className="flex items-stretch gap-2 min-w-0">
+      <input
+        className="h-10 flex-1 min-w-0 rounded-lg border border-slate-700 bg-slate-900 px-3 text-sm text-slate-100 focus:border-sky-500 focus:outline-none"
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            onEnter();
+          }
+        }}
+      />
+      <button
+        className={`inline-flex h-10 items-center justify-center rounded-lg border px-3 text-sm font-medium transition-colors shrink-0 ${
+          speech.listening
+            ? 'border-amber-400 text-amber-200 bg-amber-500/10'
+            : 'border-slate-700 text-slate-100 hover:bg-slate-800'
+        }`}
+        onClick={() => (speech.listening ? speech.stop() : speech.start())}
+        disabled={!speech.supported}
+        title={
+          speech.supported
+            ? `Voice input (timeout ~${Math.round((speech.silenceTimeoutMs || 0) / 1000)}s)`
+            : 'Voice unavailable'
+        }
+      >
+        {speech.listening ? 'Stop mic' : '🎙️ Speak'}
+      </button>
+      <button
+        className="inline-flex h-10 items-center justify-center rounded-lg bg-sky-600 px-4 text-sm font-semibold text-white hover:bg-sky-500 disabled:opacity-60 disabled:cursor-not-allowed shrink-0"
+        onClick={onSend}
+        disabled={sending || !value.trim()}
+      >
+        {sending ? 'Sending…' : 'Send'}
+      </button>
+    </div>
+  );
 }
 
 export default function WeekBoard({
@@ -318,7 +423,10 @@ export default function WeekBoard({
   }
 
   async function markStatus(item: Item, status: TaskStatus) {
-    await saveItem({ ...item, status });
+    const ok = await saveItem({ ...item, status });
+    if (!ok && process.env.NODE_ENV !== 'production') {
+      console.debug('[items] markStatus failed', { id: item.id, status });
+    }
   }
 
   function openNew(day: string) {
@@ -438,7 +546,7 @@ export default function WeekBoard({
               className="inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-2 text-sm text-slate-100 hover:bg-slate-800 transition-colors"
               onClick={() => shiftAnchor(-1)}
             >
-              <span className="text-xl leading-none w-4 text-center relative -top-px">&lt;</span>
+              <span className="text-xl leading-none w-4 text-center">&lt;</span>
               <span className="leading-none">Previous</span>
             </button>
             <button
@@ -452,7 +560,7 @@ export default function WeekBoard({
               onClick={() => shiftAnchor(1)}
             >
               <span className="leading-none">Next</span>
-              <span className="text-xl leading-none w-4 text-center relative -top-px">&gt;</span>
+              <span className="text-xl leading-none w-4 text-center">&gt;</span>
             </button>
           </div>
           <div className="flex flex-wrap items-center gap-3 text-sm text-slate-400">
@@ -582,61 +690,34 @@ export default function WeekBoard({
           ))}
         </div>
         {chatError && <p className="text-sm text-rose-300">{chatError}</p>}
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3 min-w-0">
-          <div className="flex flex-1 flex-col gap-1 min-w-0">
-            <div className="flex items-center gap-2 min-w-0">
-              <input
-                className="flex-1 min-w-0 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-sky-500 focus:outline-none h-10"
-                placeholder="Сегодня 18:00 покушать рамен / Today 18:00 ramen"
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    sendChatMessage();
-                  }
-                }}
-              />
-              <button
-                className={`inline-flex h-10 items-center justify-center rounded-lg border px-3 text-sm font-medium transition-colors shrink-0 ${
-                  speech.listening
-                    ? 'border-amber-400 text-amber-200 bg-amber-500/10'
-                    : 'border-slate-700 text-slate-100 hover:bg-slate-800'
-                }`}
-                onClick={() => (speech.listening ? speech.stop() : speech.start())}
-                disabled={!speech.supported}
-                title={speech.supported ? 'Voice input' : 'Voice unavailable'}
-              >
-                {speech.listening ? 'Stop mic' : '🎙️ Speak'}
-              </button>
-            </div>
-            <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
-              <label className="flex items-center gap-2">
-                <span>Voice language</span>
-                <select
-                  className="rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100"
-                  value={voiceLang}
-                  onChange={(e) => setVoiceLang(e.target.value as 'ru-RU' | 'en-GB')}
-                >
-                  <option value="ru-RU">RU</option>
-                  <option value="en-GB">EN</option>
-                </select>
-              </label>
-              {speechText && <span className="text-amber-200">Interim: {speechText}</span>}
-              {!speech.supported && <span className="text-rose-300">Speech recognition not supported in this browser.</span>}
-              {speech.error && <span className="text-rose-300">{speech.error}</span>}
-            </div>
-          </div>
-          <button
-            className="inline-flex h-10 items-center justify-center rounded-lg bg-sky-600 px-4 text-sm font-semibold text-white hover:bg-sky-500 disabled:opacity-60 disabled:cursor-not-allowed shrink-0"
-            onClick={sendChatMessage}
-            disabled={chatLoading || !chatInput.trim()}
-          >
-            {chatLoading ? 'Sending…' : 'Send'}
-          </button>
+        <ChatInputRow
+          value={chatInput}
+          placeholder="Сегодня 18:00 покушать рамен / Today 18:00 ramen"
+          onChange={setChatInput}
+          onSend={sendChatMessage}
+          onEnter={sendChatMessage}
+          speech={speech}
+          sending={chatLoading}
+        />
+        <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
+          <label className="flex items-center gap-2">
+            <span>Voice language</span>
+            <select
+              className="rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100"
+              value={voiceLang}
+              onChange={(e) => setVoiceLang(e.target.value as 'ru-RU' | 'en-GB')}
+            >
+              <option value="ru-RU">RU</option>
+              <option value="en-GB">EN</option>
+            </select>
+          </label>
+          <span className="text-slate-500">Silence timeout ~{Math.round((speech.silenceTimeoutMs || 0) / 1000)}s</span>
+          {speechText && <span className="text-amber-200">Interim: {speechText}</span>}
+          {!speech.supported && <span className="text-rose-300">Speech recognition not supported in this browser.</span>}
+          {speech.error && <span className="text-rose-300">{speech.error}</span>}
         </div>
 
-        {clarifications && (
+        {clarifications && pendingDrafts.length === 0 && (
           <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-200 space-y-2">
             <p className="font-semibold">Need clarification</p>
             <ul className="list-disc list-inside space-y-1 text-amber-100">
@@ -674,9 +755,9 @@ export default function WeekBoard({
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2 text-[11px] text-slate-300">
-                    {formatTimeRange(draft.timeStart, draft.timeEnd) && (
+                    {formatTimeRange24(draft.timeStart, draft.timeEnd) && (
                       <span className="rounded-full bg-slate-800 px-2 py-1 border border-slate-700">
-                        {formatTimeRange(draft.timeStart, draft.timeEnd)}
+                        {formatTimeRange24(draft.timeStart, draft.timeEnd)}
                       </span>
                     )}
                     <span className="rounded-full bg-slate-800 px-2 py-1 border border-slate-700">{formatDayEU(draft.day)}</span>
