@@ -76,11 +76,72 @@ function normalizePartsToHHmm(hh: string, mm: string, stepMinutes: number): stri
   return `${hhStr}:${mmStr}`;
 }
 
+function clampWithinRange(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function WheelNumberField({
+  value,
+  min,
+  max,
+  pad = 2,
+  placeholder,
+  ariaLabel,
+  onChange,
+  onStep,
+}: {
+  value: string;
+  min: number;
+  max: number;
+  pad?: number;
+  placeholder: string;
+  ariaLabel: string;
+  onChange: (next: string) => void;
+  onStep: (next: string) => void;
+}) {
+  const formatValue = (raw: string) => raw.padStart(pad, '0').slice(-pad);
+
+  const handleStep = (delta: number) => {
+    const numeric = Number.parseInt(value || `${min}`, 10);
+    const fallback = Number.isNaN(numeric) ? min : numeric;
+    const next = clampWithinRange(fallback + delta, min, max);
+    onStep(formatValue(next.toString()));
+  };
+
+  return (
+    <input
+      inputMode="numeric"
+      pattern="[0-9]*"
+      className="h-10 w-16 rounded-lg border border-slate-700 bg-slate-900 px-2 text-slate-100 text-sm text-center focus:border-sky-500 focus:outline-none"
+      placeholder={placeholder}
+      aria-label={ariaLabel}
+      value={value}
+      onChange={(e) => {
+        const sanitized = e.target.value.replace(/\D/g, '').slice(0, pad);
+        onChange(sanitized);
+      }}
+      onWheel={(e) => {
+        e.preventDefault();
+        handleStep(e.deltaY < 0 ? 1 : -1);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          handleStep(1);
+        } else if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          handleStep(-1);
+        }
+      }}
+    />
+  );
+}
+
 function TimeField({
   label,
   value,
   onChange,
-  stepMinutes = 5,
+  stepMinutes = 1,
 }: {
   label: string;
   value: string | null;
@@ -98,36 +159,38 @@ function TimeField({
     setMm(nextM);
   }, [value]);
 
-  const handleBlur = () => {
-    const normalizedValue = normalizePartsToHHmm(hh, mm, stepMinutes);
+  const commit = (nextH: string, nextM: string) => {
+    const normalizedValue = normalizePartsToHHmm(nextH, nextM, stepMinutes);
     onChange(normalizedValue);
-    const { hh: nextH, mm: nextM } = splitHHmm(normalizedValue);
-    setHh(nextH);
-    setMm(nextM);
+    const { hh: syncedH, mm: syncedM } = splitHHmm(normalizedValue);
+    setHh(syncedH);
+    setMm(syncedM);
   };
+
+  const handleBlur = () => commit(hh, mm);
 
   return (
     <label className="flex flex-col gap-1">
       <span className="text-slate-300">{label}</span>
       <div className="flex items-center gap-2">
-        <input
-          inputMode="numeric"
-          pattern="[0-9]*"
-          className="h-10 w-14 rounded-lg border border-slate-700 bg-slate-900 px-2 text-slate-100 text-sm text-center focus:border-sky-500 focus:outline-none"
-          placeholder="HH"
+        <WheelNumberField
           value={hh}
-          onChange={(e) => setHh(e.target.value.slice(0, 2))}
-          onBlur={handleBlur}
+          min={0}
+          max={23}
+          placeholder="HH"
+          ariaLabel={`${label} hours`}
+          onChange={(v) => setHh(v)}
+          onStep={(v) => commit(v, mm || '00')}
         />
         <span className="text-slate-400 select-none">:</span>
-        <input
-          inputMode="numeric"
-          pattern="[0-9]*"
-          className="h-10 w-14 rounded-lg border border-slate-700 bg-slate-900 px-2 text-slate-100 text-sm text-center focus:border-sky-500 focus:outline-none"
-          placeholder="MM"
+        <WheelNumberField
           value={mm}
-          onChange={(e) => setMm(e.target.value.slice(0, 2))}
-          onBlur={handleBlur}
+          min={0}
+          max={59}
+          placeholder="MM"
+          ariaLabel={`${label} minutes`}
+          onChange={(v) => setMm(v)}
+          onStep={(v) => commit(hh || '00', v)}
         />
         <button
           type="button"
@@ -141,6 +204,7 @@ function TimeField({
           Clear
         </button>
       </div>
+      <div className="text-[11px] text-slate-500">Scroll or use arrows to adjust time.</div>
     </label>
   );
 }
@@ -153,9 +217,9 @@ function ChatInputRow({
   actions: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center gap-2 min-w-0">
+    <div className="flex items-center gap-2 w-full min-w-0">
       <div className="flex-1 min-w-0">{input}</div>
-      <div className="flex items-center gap-2 shrink-0">{actions}</div>
+      <div className="shrink-0 flex items-center gap-2">{actions}</div>
     </div>
   );
 }
@@ -419,6 +483,13 @@ export default function WeekBoard({
     setChatLoading(true);
 
     try {
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug('[chat] sending message', {
+          range: { start: anchor, end: rangeEnd },
+          messages: history.length,
+        });
+      }
+
       const res = await fetch('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -435,6 +506,26 @@ export default function WeekBoard({
       }
 
       const data = await res.json();
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug('[chat] response received', {
+          status: res.status,
+          ok: res.ok,
+          hasDrafts: Array.isArray(data?.drafts),
+          draftsCount: Array.isArray(data?.drafts) ? data.drafts.length : undefined,
+          needClarification: data?.needClarification,
+          hasError: Boolean(data?.error),
+        });
+      }
+
+      if (data.error) {
+        setChatError('AI is unavailable right now. Please try again.');
+        setChatMessages((msgs) => [
+          ...msgs,
+          { role: 'assistant', content: 'Sorry, I could not reach the planner AI right now.' },
+        ]);
+        return;
+      }
+
       if (data.needClarification) {
         setClarifications(data.questions || []);
         setPendingDrafts([]);
@@ -449,14 +540,24 @@ export default function WeekBoard({
       }
 
       if (data.drafts && Array.isArray(data.drafts)) {
-        setPendingDrafts(data.drafts);
-        setClarifications(null);
+        if (data.drafts.length > 0) {
+          setPendingDrafts(data.drafts);
+          setClarifications(null);
+          setChatMessages((msgs) => [
+            ...msgs,
+            {
+              role: 'assistant',
+              content: `Created ${data.drafts.length} draft(s). Review and confirm below.`,
+            },
+          ]);
+          return;
+        }
+
+        setClarifications(data.questions || []);
+        setPendingDrafts([]);
         setChatMessages((msgs) => [
           ...msgs,
-          {
-            role: 'assistant',
-            content: `Created ${data.drafts.length} draft(s). Review and confirm below.`,
-          },
+          { role: 'assistant', content: 'Need clarification to create drafts.' },
         ]);
         return;
       }
@@ -471,6 +572,9 @@ export default function WeekBoard({
         ...msgs,
         { role: 'assistant', content: 'Something went wrong while talking to the AI.' },
       ]);
+      if (process.env.NODE_ENV !== 'production') {
+        console.error('[chat] request failed', e);
+      }
     } finally {
       setChatLoading(false);
     }
@@ -629,12 +733,12 @@ export default function WeekBoard({
           ))}
         </div>
         {chatError && <p className="text-sm text-rose-300">{chatError}</p>}
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3 min-w-0">
-          <div className="flex flex-1 flex-col gap-1 min-w-0">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3 min-w-0 w-full">
+          <div className="flex flex-1 flex-col gap-1 min-w-0 w-full">
             <ChatInputRow
               input={
                 <input
-                  className="flex-1 min-w-0 h-10 rounded-lg border border-slate-700 bg-slate-900 px-3 text-sm text-slate-100 focus:border-sky-500 focus:outline-none"
+                  className="w-full h-10 rounded-lg border border-slate-700 bg-slate-900 px-3 text-sm text-slate-100 focus:border-sky-500 focus:outline-none"
                   placeholder="Сегодня 18:00 покушать рамен / Today 18:00 ramen"
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
