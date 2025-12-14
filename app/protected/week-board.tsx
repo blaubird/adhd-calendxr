@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { addDays } from 'date-fns';
 import { Draft, Item, ItemKind, TaskStatus } from 'app/types';
 import {
@@ -45,81 +45,118 @@ const ANCHOR_STORAGE_KEY = 'calendar-anchor';
 const PIN_STORAGE_KEY = 'calendar-anchor-pinned';
 const LAST_SEEN_DAY_KEY = 'calendar-last-seen';
 
-const HOURS = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0'));
-const MINUTES = Array.from({ length: 60 }, (_, i) => i.toString().padStart(2, '0'));
+function splitHHmm(value: string | null): { hh: string; mm: string } {
+  if (!value) return { hh: '', mm: '' };
+  const [hh = '', mm = ''] = value.split(':');
+  return { hh, mm };
+}
 
-function pad2(value: string) {
-  return value.padStart(2, '0');
+function snapMinutes(value: number, step: number) {
+  if (step <= 1) return value;
+  const snapped = Math.round(value / step) * step;
+  return Math.max(0, Math.min(59, snapped));
+}
+
+function normalizePartsToHHmm(hh: string, mm: string, stepMinutes: number): string | null {
+  const trimmedH = hh.trim();
+  const trimmedM = mm.trim();
+  if (!trimmedH && !trimmedM) return null;
+
+  const parsedH = Number.parseInt(trimmedH, 10);
+  const parsedM = Number.parseInt(trimmedM || '0', 10);
+
+  if (Number.isNaN(parsedH) || parsedH < 0 || parsedH > 23) return null;
+  if (Number.isNaN(parsedM) || parsedM < 0 || parsedM > 59) return null;
+
+  const finalM = snapMinutes(parsedM, stepMinutes);
+
+  const hhStr = parsedH.toString().padStart(2, '0');
+  const mmStr = finalM.toString().padStart(2, '0');
+
+  return `${hhStr}:${mmStr}`;
 }
 
 function TimeField({
   label,
   value,
   onChange,
+  stepMinutes = 5,
 }: {
   label: string;
   value: string | null;
   onChange: (v: string | null) => void;
+  stepMinutes?: number;
 }) {
   const normalized = formatTime24(value) || null;
-  const [hour, minute] = normalized?.split(':') ?? ['', ''];
+  const { hh: initialH, mm: initialM } = splitHHmm(normalized);
+  const [hh, setHh] = useState(initialH);
+  const [mm, setMm] = useState(initialM);
 
-  const handleHourChange = (nextHour: string) => {
-    if (!nextHour) {
-      onChange(null);
-      return;
-    }
-    const nextMinute = minute || '00';
-    onChange(`${pad2(nextHour)}:${pad2(nextMinute)}`);
-  };
+  useEffect(() => {
+    const { hh: nextH, mm: nextM } = splitHHmm(formatTime24(value) || null);
+    setHh(nextH);
+    setMm(nextM);
+  }, [value]);
 
-  const handleMinuteChange = (nextMinute: string) => {
-    if (!nextMinute && !hour) {
-      onChange(null);
-      return;
-    }
-    const nextHour = hour || '00';
-    onChange(`${pad2(nextHour)}:${pad2(nextMinute || '00')}`);
+  const handleBlur = () => {
+    const normalizedValue = normalizePartsToHHmm(hh, mm, stepMinutes);
+    onChange(normalizedValue);
+    const { hh: nextH, mm: nextM } = splitHHmm(normalizedValue);
+    setHh(nextH);
+    setMm(nextM);
   };
 
   return (
     <label className="flex flex-col gap-1">
       <span className="text-slate-300">{label}</span>
       <div className="flex items-center gap-2">
-        <select
-          className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100"
-          value={hour}
-          onChange={(e) => handleHourChange(e.target.value)}
-        >
-          <option value="">HH</option>
-          {HOURS.map((h) => (
-            <option key={h} value={h}>
-              {h}
-            </option>
-          ))}
-        </select>
-        <span className="text-slate-500">:</span>
-        <select
-          className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100"
-          value={minute}
-          onChange={(e) => handleMinuteChange(e.target.value)}
-        >
-          <option value="">MM</option>
-          {MINUTES.map((m) => (
-            <option key={m} value={m}>
-              {m}
-            </option>
-          ))}
-        </select>
+        <input
+          inputMode="numeric"
+          pattern="[0-9]*"
+          className="h-10 w-14 rounded-lg border border-slate-700 bg-slate-900 px-2 text-slate-100 text-sm text-center focus:border-sky-500 focus:outline-none"
+          placeholder="HH"
+          value={hh}
+          onChange={(e) => setHh(e.target.value.slice(0, 2))}
+          onBlur={handleBlur}
+        />
+        <span className="text-slate-400 select-none">:</span>
+        <input
+          inputMode="numeric"
+          pattern="[0-9]*"
+          className="h-10 w-14 rounded-lg border border-slate-700 bg-slate-900 px-2 text-slate-100 text-sm text-center focus:border-sky-500 focus:outline-none"
+          placeholder="MM"
+          value={mm}
+          onChange={(e) => setMm(e.target.value.slice(0, 2))}
+          onBlur={handleBlur}
+        />
         <button
           type="button"
-          className="text-[11px] text-slate-400 hover:text-slate-200"
-          onClick={() => onChange(null)}
+          className="h-10 px-3 rounded-lg border border-slate-700 text-slate-200 hover:bg-slate-800 text-sm"
+          onClick={() => {
+            setHh('');
+            setMm('');
+            onChange(null);
+          }}
         >
           Clear
         </button>
       </div>
     </label>
+  );
+}
+
+function ChatInputRow({
+  input,
+  actions,
+}: {
+  input: React.ReactNode;
+  actions: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center gap-2 min-w-0">
+      <div className="flex-1 min-w-0">{input}</div>
+      <div className="flex items-center gap-2 shrink-0">{actions}</div>
+    </div>
   );
 }
 
@@ -171,16 +208,26 @@ export default function WeekBoard({
   const [confirmingDraft, setConfirmingDraft] = useState<number | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const [voiceLang, setVoiceLang] = useState<'ru-RU' | 'en-GB'>('ru-RU');
-  const [speechText, setSpeechText] = useState('');
+  const lastFinalTextRef = useRef('');
 
   const speech = useSpeechToText({
     language: voiceLang,
-    onFinal: (text) => {
-      setSpeechText('');
-      setChatInput((prev) => (prev ? `${prev} ${text}` : text));
-    },
-    onInterim: setSpeechText,
   });
+
+  useEffect(() => {
+    const nextFinal = speech.finalText;
+    const prevFinal = lastFinalTextRef.current;
+    if (!nextFinal) return;
+    if (nextFinal !== prevFinal) {
+      const addition = nextFinal.startsWith(prevFinal)
+        ? nextFinal.slice(prevFinal.length).trim()
+        : nextFinal.trim();
+      if (addition) {
+        setChatInput((prev) => (prev ? `${prev} ${addition}` : addition));
+      }
+      lastFinalTextRef.current = nextFinal;
+    }
+  }, [speech.finalText]);
 
   const rangeEnd = useMemo(() => rangeEndFromAnchor(anchor, VISIBLE_DAYS), [anchor]);
 
@@ -584,32 +631,45 @@ export default function WeekBoard({
         {chatError && <p className="text-sm text-rose-300">{chatError}</p>}
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3 min-w-0">
           <div className="flex flex-1 flex-col gap-1 min-w-0">
-            <div className="flex items-center gap-2 min-w-0">
-              <input
-                className="flex-1 min-w-0 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-sky-500 focus:outline-none h-10"
-                placeholder="Сегодня 18:00 покушать рамен / Today 18:00 ramen"
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    sendChatMessage();
-                  }
-                }}
-              />
-              <button
-                className={`inline-flex h-10 items-center justify-center rounded-lg border px-3 text-sm font-medium transition-colors shrink-0 ${
-                  speech.listening
-                    ? 'border-amber-400 text-amber-200 bg-amber-500/10'
-                    : 'border-slate-700 text-slate-100 hover:bg-slate-800'
-                }`}
-                onClick={() => (speech.listening ? speech.stop() : speech.start())}
-                disabled={!speech.supported}
-                title={speech.supported ? 'Voice input' : 'Voice unavailable'}
-              >
-                {speech.listening ? 'Stop mic' : '🎙️ Speak'}
-              </button>
-            </div>
+            <ChatInputRow
+              input={
+                <input
+                  className="flex-1 min-w-0 h-10 rounded-lg border border-slate-700 bg-slate-900 px-3 text-sm text-slate-100 focus:border-sky-500 focus:outline-none"
+                  placeholder="Сегодня 18:00 покушать рамен / Today 18:00 ramen"
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      sendChatMessage();
+                    }
+                  }}
+                />
+              }
+              actions={
+                <>
+                  <button
+                    className={`inline-flex items-center justify-center h-10 px-4 rounded-lg border text-sm font-medium transition-colors ${
+                      speech.isListening
+                        ? 'border-amber-400 text-amber-200 bg-amber-500/10'
+                        : 'border-slate-700 text-slate-100 hover:bg-slate-800'
+                    }`}
+                    onClick={() => (speech.isListening ? speech.stop() : speech.start())}
+                    disabled={!speech.isSupported}
+                    title={speech.isSupported ? 'Voice input' : 'Voice unavailable'}
+                  >
+                    {speech.isListening ? 'Stop mic' : '🎙️ Speak'}
+                  </button>
+                  <button
+                    className="inline-flex items-center justify-center h-10 px-4 rounded-lg bg-sky-600 text-sm font-semibold text-white hover:bg-sky-500 disabled:opacity-60 disabled:cursor-not-allowed"
+                    onClick={sendChatMessage}
+                    disabled={chatLoading || !chatInput.trim()}
+                  >
+                    {chatLoading ? 'Sending…' : 'Send'}
+                  </button>
+                </>
+              }
+            />
             <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
               <label className="flex items-center gap-2">
                 <span>Voice language</span>
@@ -622,18 +682,13 @@ export default function WeekBoard({
                   <option value="en-GB">EN</option>
                 </select>
               </label>
-              {speechText && <span className="text-amber-200">Interim: {speechText}</span>}
-              {!speech.supported && <span className="text-rose-300">Speech recognition not supported in this browser.</span>}
+              {speech.interimText && <span className="text-amber-200">Interim: {speech.interimText}</span>}
+              {!speech.isSupported && (
+                <span className="text-rose-300">Speech recognition not supported in this browser.</span>
+              )}
               {speech.error && <span className="text-rose-300">{speech.error}</span>}
             </div>
           </div>
-          <button
-            className="inline-flex h-10 items-center justify-center rounded-lg bg-sky-600 px-4 text-sm font-semibold text-white hover:bg-sky-500 disabled:opacity-60 disabled:cursor-not-allowed shrink-0"
-            onClick={sendChatMessage}
-            disabled={chatLoading || !chatInput.trim()}
-          >
-            {chatLoading ? 'Sending…' : 'Send'}
-          </button>
         </div>
 
         {clarifications && (
