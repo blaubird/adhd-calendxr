@@ -45,6 +45,10 @@ export function nowInTz(date: Date = new Date()) {
   return new Date(Date.UTC(year, month - 1, day, hours, minutes, seconds));
 }
 
+export function todayKey(date: Date = new Date()) {
+  return formatDayKey(nowInTz(date));
+}
+
 export function formatDayKey(date: Date) {
   const zoned = nowInTz(date);
   return format(zoned, DAY_KEY_FORMAT, { locale: enGB });
@@ -81,6 +85,14 @@ export function formatTime24(time: string | null | undefined) {
   // Normalize common formats (HH:mm:ss, HH:mm) to HH:mm (24h)
   const normalized = normalizeTime(time);
   return normalized ?? '';
+}
+
+export function formatTimeRange24(start: string | null, end: string | null) {
+  const startStr = formatTime24(start);
+  const endStr = formatTime24(end);
+  if (!startStr && !endStr) return '';
+  if (startStr && endStr) return `${startStr}–${endStr}`;
+  return startStr || endStr;
 }
 
 export function normalizeDayString(day: string) {
