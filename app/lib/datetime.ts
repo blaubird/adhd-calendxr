@@ -3,7 +3,8 @@ import { enGB } from 'date-fns/locale';
 
 export const TIMEZONE = process.env.APP_TIMEZONE || 'Europe/Paris';
 export const DAY_KEY_FORMAT = 'yyyy-MM-dd';
-const DISPLAY_DATE_FORMAT = 'dd MMM yyyy';
+const DISPLAY_DATE_FORMAT = 'dd.MM.yyyy';
+const HEADING_DATE_FORMAT = 'EEE dd.MM.yyyy';
 
 type ZonedParts = {
   year: number;
@@ -59,14 +60,23 @@ export function rangeEndFromAnchor(anchor: string, days: number) {
 }
 
 export function formatDayHeading(date: Date) {
-  return format(nowInTz(date), 'EEE, dd MMM', { locale: enGB });
+  return format(nowInTz(date), HEADING_DATE_FORMAT, { locale: enGB });
 }
 
 export function formatDateFull(date: Date) {
   return format(nowInTz(date), DISPLAY_DATE_FORMAT, { locale: enGB });
 }
 
+export function formatDayEU(isoDay: string) {
+  return format(parseDayKey(isoDay), DISPLAY_DATE_FORMAT, { locale: enGB });
+}
+
 export function formatTimeValue(time: string | null) {
+  if (!time) return '';
+  return formatTime24(time) ?? '';
+}
+
+export function formatTime24(time: string | null | undefined) {
   if (!time) return '';
   // Normalize common formats (HH:mm:ss, HH:mm) to HH:mm (24h)
   const normalized = normalizeTime(time);
@@ -115,4 +125,13 @@ export function formatTimeRange(start: string | null, end: string | null) {
   if (!startStr && !endStr) return '';
   if (startStr && endStr) return `${startStr}–${endStr}`;
   return startStr || endStr;
+}
+
+export function parseDayEU(input: string) {
+  const trimmed = input.trim();
+  const match = trimmed.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+  if (!match) return null;
+  const [, day, month, year] = match;
+  const iso = `${year}-${month}-${day}`;
+  return normalizeDayString(iso);
 }

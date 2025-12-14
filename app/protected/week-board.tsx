@@ -5,11 +5,14 @@ import { addDays } from 'date-fns';
 import { Draft, Item, ItemKind, TaskStatus } from 'app/types';
 import {
   formatDateFull,
+  formatDayEU,
   formatDayHeading,
   formatDayKey,
   formatTimeRange,
+  formatTime24,
   formatTimeValue,
   nowInTz,
+  parseDayEU,
   parseDayKey,
   rangeEndFromAnchor,
   TIMEZONE,
@@ -173,12 +176,24 @@ export default function WeekBoard({
     return map;
   }, [items]);
 
+  const toPayload = (values: ItemFormState) => {
+    const timeStart = formatTime24(values.timeStart) || null;
+    const timeEnd = formatTime24(values.timeEnd) || null;
+
+    return {
+      kind: values.kind,
+      day: values.day,
+      timeStart,
+      timeEnd,
+      title: values.title,
+      details: values.details ?? null,
+      status: values.kind === 'task' ? values.status ?? 'todo' : null,
+    } satisfies Omit<Item, 'id' | 'userId'>;
+  };
+
   async function saveItem(values: ItemFormState): Promise<boolean> {
     setError(null);
-    const payload = { ...values } as any;
-    if (payload.kind === 'event') payload.status = null;
-    if (!payload.timeStart) payload.timeStart = null;
-    if (!payload.timeEnd) payload.timeEnd = null;
+    const payload = toPayload(values);
     const method = values.id ? 'PUT' : 'POST';
     const url = values.id ? `/api/items/${values.id}` : '/api/items';
     const res = await fetch(url, {
@@ -188,6 +203,20 @@ export default function WeekBoard({
     });
     if (!res.ok) {
       setError('Unable to save item');
+      try {
+        const text = await res.text();
+        if (process.env.NODE_ENV !== 'production') {
+          console.error('[items] save failed', {
+            status: res.status,
+            statusText: res.statusText,
+            body: text,
+          });
+        }
+      } catch (e) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.error('[items] save failed (no body)', e);
+        }
+      }
       return false;
     }
     const data = await res.json();
@@ -328,10 +357,11 @@ export default function WeekBoard({
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
             <button
-              className="rounded-full border border-slate-700 px-3 py-2 text-sm text-slate-100 hover:bg-slate-800 transition-colors"
+              className="rounded-full border border-slate-700 px-3 py-2 text-sm text-slate-100 hover:bg-slate-800 transition-colors flex items-center gap-1"
               onClick={() => shiftAnchor(-1)}
             >
-              ◀ Previous
+              <span className="text-xl leading-none">&lt;</span>
+              <span className="leading-none">Previous</span>
             </button>
             <button
               className="rounded-full border border-slate-700 px-3 py-2 text-sm text-slate-100 hover:bg-slate-800 transition-colors"
@@ -340,10 +370,11 @@ export default function WeekBoard({
               Today
             </button>
             <button
-              className="rounded-full border border-slate-700 px-3 py-2 text-sm text-slate-100 hover:bg-slate-800 transition-colors"
+              className="rounded-full border border-slate-700 px-3 py-2 text-sm text-slate-100 hover:bg-slate-800 transition-colors flex items-center gap-1"
               onClick={() => shiftAnchor(1)}
             >
-              Next ▶
+              <span className="leading-none">Next</span>
+              <span className="text-xl leading-none">&gt;</span>
             </button>
           </div>
           <div className="flex flex-wrap items-center gap-3 text-sm text-slate-400">
@@ -553,7 +584,7 @@ export default function WeekBoard({
                         {formatTimeRange(draft.timeStart, draft.timeEnd)}
                       </span>
                     )}
-                    <span className="rounded-full bg-slate-800 px-2 py-1 border border-slate-700">{formatDayKey(parseDayKey(draft.day))}</span>
+                    <span className="rounded-full bg-slate-800 px-2 py-1 border border-slate-700">{formatDayEU(draft.day)}</span>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <button
@@ -602,16 +633,40 @@ function EditModal({
   onSave: (values: ItemFormState) => Promise<void>;
 }) {
   const [local, setLocal] = useState(values);
+  const [dayInput, setDayInput] = useState(formatDayEU(values.day));
+  const [dayError, setDayError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => setLocal(values), [values]);
+  useEffect(() => {
+    setLocal(values);
+    setDayInput(formatDayEU(values.day));
+    setDayError(null);
+  }, [values]);
 
   const update = (key: keyof ItemFormState, value: any) =>
     setLocal((prev) => ({ ...prev, [key]: value }));
 
+  const handleDayChange = (value: string) => {
+    setDayInput(value);
+    const parsed = parseDayEU(value);
+    if (parsed) {
+      setDayError(null);
+      update('day', parsed);
+    } else {
+      setDayError('Use DD.MM.YYYY');
+    }
+  };
+
   const handleSubmit = async () => {
+    const parsedDay = parseDayEU(dayInput);
+    if (!parsedDay) {
+      setDayError('Use DD.MM.YYYY');
+      return;
+    }
+    const nextValues = { ...local, day: parsedDay };
+    setLocal(nextValues);
     setSubmitting(true);
-    await onSave(local);
+    await onSave(nextValues);
     setSubmitting(false);
   };
 
@@ -643,16 +698,21 @@ function EditModal({
           <label className="flex flex-col gap-1">
             <span className="text-slate-300">Day</span>
             <input
-              type="date"
+              type="text"
+              inputMode="numeric"
+              pattern="\d{2}\.\d{2}\.\d{4}"
               className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100"
-              value={local.day}
-              onChange={(e) => update('day', e.target.value)}
+              placeholder="DD.MM.YYYY"
+              value={dayInput}
+              onChange={(e) => handleDayChange(e.target.value)}
             />
+            {dayError && <span className="text-[11px] text-rose-300">{dayError}</span>}
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-slate-300">Start</span>
             <input
               type="time"
+              lang="fr-FR"
               className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100"
               value={formatTimeValue(local.timeStart)}
               onChange={(e) => update('timeStart', e.target.value || null)}
@@ -662,6 +722,7 @@ function EditModal({
             <span className="text-slate-300">End</span>
             <input
               type="time"
+              lang="fr-FR"
               className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100"
               value={formatTimeValue(local.timeEnd)}
               onChange={(e) => update('timeEnd', e.target.value || null)}
@@ -713,7 +774,7 @@ function EditModal({
           <button
             className="px-4 py-2 text-sm rounded-lg bg-sky-600 text-white hover:bg-sky-500 disabled:opacity-60"
             onClick={handleSubmit}
-            disabled={submitting}
+            disabled={submitting || !!dayError}
           >
             {local.id ? 'Save changes' : 'Add item'}
           </button>
@@ -738,12 +799,7 @@ function LiveClock() {
     hour12: false,
     timeZone: TIMEZONE,
   }).format(now);
-  const date = new Intl.DateTimeFormat('en-GB', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    timeZone: TIMEZONE,
-  }).format(now);
+  const date = formatDateFull(now);
 
   return (
     <div className="text-right">
