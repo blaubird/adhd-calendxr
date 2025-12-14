@@ -83,6 +83,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid payload', details: parsed.error.flatten() }, { status: 400 });
   }
 
+  if (process.env.NODE_ENV !== 'production') {
+    console.debug('[ai/chat] request', {
+      user: session.user.id,
+      model,
+      messages: parsed.data.messages.length,
+      range: parsed.data.range,
+    });
+  }
+
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 20000);
 
@@ -105,6 +114,9 @@ export async function POST(request: Request) {
     });
 
     if (!aiResponse.ok) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug('[ai/chat] OpenRouter error', { status: aiResponse.status });
+      }
       return NextResponse.json({ error: 'OpenRouter error', status: aiResponse.status }, { status: 502 });
     }
 
@@ -118,13 +130,26 @@ export async function POST(request: Request) {
     try {
       parsedContent = normalizeResult(extractJsonContent(content));
     } catch (err) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug('[ai/chat] normalization failed', { message: (err as Error)?.message });
+      }
       return NextResponse.json({
         needClarification: true,
         questions: ['Please confirm the exact day (YYYY-MM-DD) and 24h time for this request.'],
       });
     }
+
+    if (process.env.NODE_ENV !== 'production') {
+      console.debug('[ai/chat] response payload', {
+        needClarification: parsedContent.needClarification,
+        drafts: 'drafts' in parsedContent ? parsedContent.drafts.length : undefined,
+      });
+    }
     return NextResponse.json(parsedContent);
   } catch (error: any) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.error('[ai/chat] request failed', { message: error?.message, name: error?.name });
+    }
     if (error?.name === 'AbortError') {
       return NextResponse.json({ error: 'AI request timed out' }, { status: 504 });
     }
