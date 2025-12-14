@@ -8,12 +8,32 @@ type Options = {
   onInterim?: (text: string) => void;
 };
 
+const SILENCE_TIMEOUT_MS = 12000;
+const RESTART_DELAY_MS = 300;
+
 export function useSpeechToText(options: Options) {
   const { language, onFinal, onInterim } = options;
   const [supported, setSupported] = useState(false);
   const [listening, setListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const recognitionRef = useRef<any>(null);
+  const silenceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastFinalRef = useRef<string>('');
+
+  const clearSilenceTimer = useCallback(() => {
+    if (silenceTimer.current) {
+      clearTimeout(silenceTimer.current);
+      silenceTimer.current = null;
+    }
+  }, []);
+
+  const scheduleSilenceStop = useCallback(() => {
+    clearSilenceTimer();
+    silenceTimer.current = setTimeout(() => {
+      recognitionRef.current?.stop();
+      setListening(false);
+    }, SILENCE_TIMEOUT_MS);
+  }, [clearSilenceTimer]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -25,7 +45,7 @@ export function useSpeechToText(options: Options) {
     }
     setSupported(true);
     const instance = new (Speech as any)();
-    instance.continuous = false;
+    instance.continuous = true;
     instance.interimResults = true;
     instance.lang = language;
     recognitionRef.current = instance;
@@ -53,30 +73,44 @@ export function useSpeechToText(options: Options) {
         }
       }
       if (interim && onInterim) onInterim(interim.trim());
-      if (finalText && onFinal) onFinal(finalText.trim());
+      if (finalText && finalText.trim() !== lastFinalRef.current) {
+        lastFinalRef.current = finalText.trim();
+        if (onFinal) onFinal(finalText.trim());
+      }
+      scheduleSilenceStop();
     };
 
     recognition.onerror = (event: any) => {
       setError(event.error || 'Speech recognition error');
       setListening(false);
+      clearSilenceTimer();
     };
 
     recognition.onend = () => {
-      setListening(false);
+      clearSilenceTimer();
       if (onInterim) onInterim('');
+      if (listening) {
+        setTimeout(() => recognition.start(), RESTART_DELAY_MS);
+      } else {
+        setListening(false);
+      }
     };
-  }, [onFinal, onInterim]);
+  }, [clearSilenceTimer, listening, onFinal, onInterim, scheduleSilenceStop]);
 
   const start = useCallback(() => {
     if (!recognitionRef.current) return;
     setError(null);
+    lastFinalRef.current = '';
     recognitionRef.current.start();
     setListening(true);
-  }, []);
+    scheduleSilenceStop();
+  }, [scheduleSilenceStop]);
 
   const stop = useCallback(() => {
+    setListening(false);
+    clearSilenceTimer();
     recognitionRef.current?.stop();
-  }, []);
+  }, [clearSilenceTimer]);
 
   return useMemo(
     () => ({
@@ -85,8 +119,8 @@ export function useSpeechToText(options: Options) {
       error,
       start,
       stop,
+      silenceTimeoutMs: SILENCE_TIMEOUT_MS,
     }),
     [error, listening, start, stop, supported],
   );
 }
-
