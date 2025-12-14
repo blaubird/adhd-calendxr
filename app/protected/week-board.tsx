@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { addDays } from 'date-fns';
 import { Draft, Item, ItemKind, TaskStatus } from 'app/types';
 import {
@@ -46,7 +46,76 @@ const PIN_STORAGE_KEY = 'calendar-anchor-pinned';
 const LAST_SEEN_DAY_KEY = 'calendar-last-seen';
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0'));
-const MINUTES = Array.from({ length: 60 }, (_, i) => i.toString().padStart(2, '0'));
+const MINUTES = Array.from({ length: 12 }, (_, i) => (i * 5).toString().padStart(2, '0'));
+
+function OptionDropdown({
+  value,
+  options,
+  placeholder,
+  onChange,
+}: {
+  value: string;
+  options: string[];
+  placeholder: string;
+  onChange: (v: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  return (
+    <div className="relative min-w-[68px]" ref={containerRef}>
+      <button
+        type="button"
+        className="flex h-10 w-full items-center justify-between gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3 text-slate-100"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span className="text-sm">{value || placeholder}</span>
+        <span className="text-xs text-slate-400">▾</span>
+      </button>
+      {open && (
+        <div className="absolute left-0 right-0 z-10 mt-1 max-h-[50vh] min-w-[120px] overflow-y-auto rounded-lg border border-slate-700 bg-slate-900 shadow-soft overscroll-contain">
+          <button
+            type="button"
+            className="block w-full px-3 py-2 text-left text-sm text-slate-400 hover:bg-slate-800"
+            onClick={() => {
+              onChange('');
+              setOpen(false);
+            }}
+          >
+            {placeholder}
+          </button>
+          <div className="max-h-64 overflow-y-auto">
+            {options.map((opt) => (
+              <button
+                key={opt}
+                type="button"
+                className={`block w-full px-3 py-2 text-left text-sm hover:bg-slate-800 ${
+                  opt === value ? 'text-sky-200' : 'text-slate-100'
+                }`}
+                onClick={() => {
+                  onChange(opt);
+                  setOpen(false);
+                }}
+              >
+                {opt}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function pad2(value: string) {
   return value.padStart(2, '0');
@@ -86,31 +155,9 @@ function TimeField({
     <label className="flex flex-col gap-1">
       <span className="text-slate-300">{label}</span>
       <div className="flex items-center gap-2">
-        <select
-          className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100"
-          value={hour}
-          onChange={(e) => handleHourChange(e.target.value)}
-        >
-          <option value="">HH</option>
-          {HOURS.map((h) => (
-            <option key={h} value={h}>
-              {h}
-            </option>
-          ))}
-        </select>
+        <OptionDropdown value={hour} options={HOURS} placeholder="HH" onChange={handleHourChange} />
         <span className="text-slate-500">:</span>
-        <select
-          className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100"
-          value={minute}
-          onChange={(e) => handleMinuteChange(e.target.value)}
-        >
-          <option value="">MM</option>
-          {MINUTES.map((m) => (
-            <option key={m} value={m}>
-              {m}
-            </option>
-          ))}
-        </select>
+        <OptionDropdown value={minute} options={MINUTES} placeholder="MM" onChange={handleMinuteChange} />
         <button
           type="button"
           className="text-[11px] text-slate-400 hover:text-slate-200"
@@ -120,6 +167,62 @@ function TimeField({
         </button>
       </div>
     </label>
+  );
+}
+
+function ChatInputRow({
+  value,
+  onChange,
+  onSend,
+  onToggleSpeech,
+  speechLabel,
+  speechDisabled,
+  speechActive,
+  sendDisabled,
+  sendLabel,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onSend: () => void;
+  onToggleSpeech: () => void;
+  speechLabel: string;
+  speechDisabled: boolean;
+  speechActive: boolean;
+  sendDisabled: boolean;
+  sendLabel: string;
+}) {
+  return (
+    <div className="flex w-full items-center gap-2 min-w-0">
+      <input
+        className="flex-1 min-w-0 rounded-lg border border-slate-700 bg-slate-900 px-3 text-sm text-slate-100 focus:border-sky-500 focus:outline-none h-10"
+        placeholder="Сегодня 18:00 покушать рамен / Today 18:00 ramen"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            onSend();
+          }
+        }}
+      />
+      <button
+        className={`inline-flex h-10 items-center justify-center rounded-lg border px-3 text-sm font-medium transition-colors shrink-0 ${
+          speechActive ? 'border-amber-400 text-amber-200 bg-amber-500/10' : 'border-slate-700 text-slate-100 hover:bg-slate-800'
+        }`}
+        onClick={onToggleSpeech}
+        disabled={speechDisabled}
+        title={speechDisabled ? 'Voice unavailable' : 'Voice input'}
+      >
+        {speechLabel}
+      </button>
+      <button
+        className="inline-flex h-10 items-center justify-center rounded-lg bg-sky-600 px-4 text-sm font-semibold text-white hover:bg-sky-500 disabled:opacity-60 disabled:cursor-not-allowed shrink-0"
+        onClick={onSend}
+        disabled={sendDisabled}
+      >
+        {sendLabel}
+      </button>
+    </div>
   );
 }
 
@@ -369,6 +472,7 @@ export default function WeekBoard({
     setChatMessages(history);
     setChatInput('');
     setChatError(null);
+    setClarifications(null);
     setChatLoading(true);
 
     try {
@@ -438,7 +542,7 @@ export default function WeekBoard({
               className="inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-2 text-sm text-slate-100 hover:bg-slate-800 transition-colors"
               onClick={() => shiftAnchor(-1)}
             >
-              <span className="text-xl leading-none w-4 text-center relative -top-px">&lt;</span>
+              <span className="leading-none text-lg">&lt;</span>
               <span className="leading-none">Previous</span>
             </button>
             <button
@@ -452,7 +556,7 @@ export default function WeekBoard({
               onClick={() => shiftAnchor(1)}
             >
               <span className="leading-none">Next</span>
-              <span className="text-xl leading-none w-4 text-center relative -top-px">&gt;</span>
+              <span className="leading-none text-lg">&gt;</span>
             </button>
           </div>
           <div className="flex flex-wrap items-center gap-3 text-sm text-slate-400">
@@ -582,61 +686,37 @@ export default function WeekBoard({
           ))}
         </div>
         {chatError && <p className="text-sm text-rose-300">{chatError}</p>}
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3 min-w-0">
-          <div className="flex flex-1 flex-col gap-1 min-w-0">
-            <div className="flex items-center gap-2 min-w-0">
-              <input
-                className="flex-1 min-w-0 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-sky-500 focus:outline-none h-10"
-                placeholder="Сегодня 18:00 покушать рамен / Today 18:00 ramen"
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    sendChatMessage();
-                  }
-                }}
-              />
-              <button
-                className={`inline-flex h-10 items-center justify-center rounded-lg border px-3 text-sm font-medium transition-colors shrink-0 ${
-                  speech.listening
-                    ? 'border-amber-400 text-amber-200 bg-amber-500/10'
-                    : 'border-slate-700 text-slate-100 hover:bg-slate-800'
-                }`}
-                onClick={() => (speech.listening ? speech.stop() : speech.start())}
-                disabled={!speech.supported}
-                title={speech.supported ? 'Voice input' : 'Voice unavailable'}
+        <div className="flex flex-col gap-2 min-w-0">
+          <ChatInputRow
+            value={chatInput}
+            onChange={setChatInput}
+            onSend={sendChatMessage}
+            onToggleSpeech={() => (speech.listening ? speech.stop() : speech.start())}
+            speechLabel={speech.listening ? 'Stop mic' : '🎙️ Speak'}
+            speechDisabled={!speech.supported}
+            speechActive={speech.listening}
+            sendDisabled={chatLoading || !chatInput.trim()}
+            sendLabel={chatLoading ? 'Sending…' : 'Send'}
+          />
+          <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
+            <label className="flex items-center gap-2">
+              <span>Voice language</span>
+              <select
+                className="rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100"
+                value={voiceLang}
+                onChange={(e) => setVoiceLang(e.target.value as 'ru-RU' | 'en-GB')}
               >
-                {speech.listening ? 'Stop mic' : '🎙️ Speak'}
-              </button>
-            </div>
-            <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
-              <label className="flex items-center gap-2">
-                <span>Voice language</span>
-                <select
-                  className="rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100"
-                  value={voiceLang}
-                  onChange={(e) => setVoiceLang(e.target.value as 'ru-RU' | 'en-GB')}
-                >
-                  <option value="ru-RU">RU</option>
-                  <option value="en-GB">EN</option>
-                </select>
-              </label>
-              {speechText && <span className="text-amber-200">Interim: {speechText}</span>}
-              {!speech.supported && <span className="text-rose-300">Speech recognition not supported in this browser.</span>}
-              {speech.error && <span className="text-rose-300">{speech.error}</span>}
-            </div>
+                <option value="ru-RU">RU</option>
+                <option value="en-GB">EN</option>
+              </select>
+            </label>
+            {speechText && <span className="text-amber-200">Interim: {speechText}</span>}
+            {!speech.supported && <span className="text-rose-300">Speech recognition not supported in this browser.</span>}
+            {speech.error && <span className="text-rose-300">{speech.error}</span>}
           </div>
-          <button
-            className="inline-flex h-10 items-center justify-center rounded-lg bg-sky-600 px-4 text-sm font-semibold text-white hover:bg-sky-500 disabled:opacity-60 disabled:cursor-not-allowed shrink-0"
-            onClick={sendChatMessage}
-            disabled={chatLoading || !chatInput.trim()}
-          >
-            {chatLoading ? 'Sending…' : 'Send'}
-          </button>
         </div>
 
-        {clarifications && (
+        {clarifications && pendingDrafts.length === 0 && (
           <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-200 space-y-2">
             <p className="font-semibold">Need clarification</p>
             <ul className="list-disc list-inside space-y-1 text-amber-100">
