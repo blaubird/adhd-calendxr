@@ -194,9 +194,9 @@ function ChatInputRow({
   sending?: boolean;
 }) {
   return (
-    <div className="flex items-stretch gap-2 min-w-0">
+    <div className="flex items-center gap-2 min-w-0 flex-nowrap">
       <input
-        className="flex-1 min-w-0 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-sky-500 focus:outline-none h-10"
+        className="flex-1 min-w-0 h-10 rounded-lg border border-slate-700 bg-slate-900 px-3 text-sm text-slate-100 focus:border-sky-500 focus:outline-none"
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
