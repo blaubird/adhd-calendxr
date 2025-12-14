@@ -323,7 +323,7 @@ export default function WeekBoard({
   }
 
   return (
-    <div className="w-[90vw] max-w-7xl mx-auto px-3 sm:px-6 pb-12 pt-6 space-y-6">
+    <div className="w-full max-w-[90vw] mx-auto px-3 sm:px-6 pb-12 pt-6 space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
@@ -356,29 +356,29 @@ export default function WeekBoard({
 
       {error && <p className="text-sm text-rose-400">{error}</p>}
 
-      <div className="overflow-x-auto overflow-y-hidden pb-2">
-        <div className="flex w-max gap-6">
+      <div className="pb-2 max-w-[90vw] mx-auto px-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 w-full min-w-0">
           {days.map((day) => {
             const key = formatDayKey(day);
             const dayItems = grouped[key] || [];
             return (
               <div
                 key={key}
-                className="bg-card rounded-2xl shadow-soft p-4 border border-slate-800 flex flex-col gap-3 min-h-[440px] shrink-0 w-[360px] md:w-[380px] lg:w-[420px]"
+                className="bg-card rounded-2xl shadow-soft p-4 border border-slate-800 flex flex-col gap-3 min-h-[440px] min-w-0"
               >
-                <div className="flex items-center justify-between">
-                  <div>
+                <div className="flex items-center justify-between gap-2 min-w-0">
+                  <div className="min-w-0">
                     <p className="text-xs uppercase tracking-wide text-slate-500">{formatDayHeading(day)}</p>
-                    <p className="text-lg font-semibold text-white">{formatDateFull(day)}</p>
+                    <p className="text-lg font-semibold text-white break-words">{formatDateFull(day)}</p>
                   </div>
                   <button
-                    className="text-sm text-sky-300 font-medium hover:text-sky-200"
+                    className="text-sm text-sky-300 font-medium hover:text-sky-200 shrink-0"
                     onClick={() => openNew(key)}
                   >
                     + Add
                   </button>
                 </div>
-                <div className="space-y-2 flex-1 overflow-hidden">
+                <div className="space-y-2 flex-1 overflow-hidden min-w-0">
                   {loading && <p className="text-sm text-slate-500">Loading…</p>}
                   {!loading && dayItems.length === 0 && (
                     <p className="text-sm text-slate-500">Nothing planned.</p>
@@ -456,7 +456,7 @@ export default function WeekBoard({
           ))}
         </div>
         {chatError && <p className="text-sm text-rose-300">{chatError}</p>}
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3 min-w-0">
           <div className="flex flex-1 flex-col gap-1 min-w-0">
             <div className="flex gap-2 min-w-0">
               <input
