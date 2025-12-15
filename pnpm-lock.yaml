@@ -24,8 +24,8 @@ importers:
         specifier: ^3.6.0
         version: 3.6.0
       drizzle-orm:
-        specifier: ^0.29.2
-        version: 0.29.5(@types/react@18.3.27)(postgres@3.4.7)(react@18.3.1)
+        specifier: 0.45.1
+        version: 0.45.1(@types/react@18.3.27)(postgres@3.4.7)(react@18.3.1)
       geist:
         specifier: ^1.2.0
         version: 1.5.1(next@14.2.35(react-dom@18.3.1(react@18.3.1))(react@18.3.1))
@@ -52,8 +52,8 @@ importers:
         specifier: ^10.4.16
         version: 10.4.22(postcss@8.5.6)
       drizzle-kit:
-        specifier: ^0.22.8
-        version: 0.22.8
+        specifier: 0.31.8
+        version: 0.31.8
       eslint:
         specifier: 8.56.0
         version: 8.56.0
@@ -959,12 +959,12 @@ packages:
     resolution: {integrity: sha512-yS+Q5i3hBf7GBkd4KG8a7eBNNWNGLTaEwwYWUijIYM7zrlYDM0BFXHjjPWlWZ1Rg7UaddZeIDmi9jF3HmqiQ2w==}
     engines: {node: '>=6.0.0'}
 
-  drizzle-kit@0.22.8:
-    resolution: {integrity: sha512-VjI4wsJjk3hSqHSa3TwBf+uvH6M6pRHyxyoVbt935GUzP9tUR/BRZ+MhEJNgryqbzN2Za1KP0eJMTgKEPsalYQ==}
+  drizzle-kit@0.31.8:
+    resolution: {tarball: https://registry.npmjs.org/drizzle-kit/-/drizzle-kit-0.31.8.tgz}
     hasBin: true
 
-  drizzle-orm@0.29.5:
-    resolution: {integrity: sha512-jS3+uyzTz4P0Y2CICx8FmRQ1eplURPaIMWDn/yq6k4ShRFj9V7vlJk67lSf2kyYPzQ60GkkNGXcJcwrxZ6QCRw==}
+  drizzle-orm@0.45.1:
+    resolution: {tarball: https://registry.npmjs.org/drizzle-orm/-/drizzle-orm-0.45.1.tgz}
     peerDependencies:
       '@aws-sdk/client-rds-data': '>=3'
       '@cloudflare/workers-types': '>=3'
@@ -2968,7 +2968,7 @@ snapshots:
     dependencies:
       esutils: 2.0.3
 
-  drizzle-kit@0.22.8:
+  drizzle-kit@0.31.8:
     dependencies:
       '@esbuild-kit/esm-loader': 2.6.5
       esbuild: 0.19.12
@@ -2976,7 +2976,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  drizzle-orm@0.29.5(@types/react@18.3.27)(postgres@3.4.7)(react@18.3.1):
+  drizzle-orm@0.45.1(@types/react@18.3.27)(postgres@3.4.7)(react@18.3.1):
     optionalDependencies:
       '@types/react': 18.3.27
       postgres: 3.4.7
