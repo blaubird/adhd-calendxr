@@ -19,4 +19,4 @@ jobs:
       - name: Push migrations
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: pnpm migrate:push
+        run: pnpm db:migrate
