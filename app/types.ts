@@ -1,8 +1,10 @@
 export type ItemKind = 'event' | 'task';
 export type TaskStatus = 'todo' | 'done' | 'canceled' | null;
 
+export type ItemId = number | string;
+
 export type Item = {
-  id: number;
+  id: ItemId;
   userId: number;
   kind: ItemKind;
   day: string; // YYYY-MM-DD
@@ -11,6 +13,16 @@ export type Item = {
   title: string;
   details: string | null;
   status: TaskStatus;
+  recurrenceRule?: string | null;
+  recurrenceTz?: string;
+  recurrenceUntilDay?: string | null;
+  recurrenceCount?: number | null;
+  recurrenceExdates?: string[];
+  parentId?: number | null;
+  occurrenceDay?: string | null;
+  sourceId?: number;
+  isOccurrence?: boolean;
+  isOverride?: boolean;
 };
 
 export type Draft = {
@@ -21,6 +33,9 @@ export type Draft = {
   timeEnd: string | null;
   details: string | null;
   status: 'todo' | 'done' | 'canceled';
+  recurrenceRule?: string | null;
+  recurrenceUntilDay?: string | null;
+  recurrenceCount?: number | null;
 };
 
 export type DraftClarification = {

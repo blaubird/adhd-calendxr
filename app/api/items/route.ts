@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { auth } from 'app/auth';
-import { createItem, listItemsInRange } from 'app/db';
+import { createItem } from 'app/db';
 import { itemInputSchema } from 'app/lib/validation';
-import { normalizeItemList, normalizeItemRecord } from 'app/lib/items';
+import { normalizeItemRecord } from 'app/lib/items';
+import { loadExpandedItems } from 'app/lib/load-items';
 
 export async function GET(request: Request) {
   const session = await auth();
@@ -16,8 +17,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'start and end are required' }, { status: 400 });
   }
 
-  const items = await listItemsInRange(Number(session.user.id), start, end);
-  return NextResponse.json({ items: normalizeItemList(items) });
+  const items = await loadExpandedItems(Number(session.user.id), start, end);
+  return NextResponse.json({ items });
 }
 
 export async function POST(request: Request) {
