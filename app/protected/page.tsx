@@ -1,10 +1,9 @@
 import { auth, signOut } from 'app/auth';
-import { listItemsInRange } from 'app/db';
 import { Item } from 'app/types';
 import WeekBoard from './week-board';
 import { redirect } from 'next/navigation';
 import { formatDayKey, nowInTz, rangeEndFromAnchor } from 'app/lib/datetime';
-import { normalizeItemList } from 'app/lib/items';
+import { loadExpandedItems } from 'app/lib/load-items';
 
 export default async function ProtectedPage() {
   const session = await auth();
@@ -15,8 +14,7 @@ export default async function ProtectedPage() {
   const today = nowInTz(new Date());
   const start = formatDayKey(today);
   const end = rangeEndFromAnchor(formatDayKey(today), 4);
-  const rawItems = await listItemsInRange(Number(session!.user!.id), start, end);
-  const items = normalizeItemList(rawItems);
+  const items = await loadExpandedItems(Number(session!.user!.id), start, end);
 
   return (
     <div className="min-h-screen bg-sand text-slate-100 overflow-x-hidden">

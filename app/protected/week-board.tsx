@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { addDays } from 'date-fns';
 import { Draft, Item, ItemKind, TaskStatus } from 'app/types';
 import {
@@ -28,7 +28,46 @@ type ItemFormState = {
   title: string;
   details: string | null;
   status: TaskStatus;
+  recurrenceRule: string | null;
+  recurrenceUntilDay: string | null;
+  recurrenceCount: number | null;
+  recurrenceExdates: string[];
+  parentId: number | null;
+  occurrenceDay: string | null;
+  sourceId?: number;
+  isOccurrence?: boolean;
+  isOverride?: boolean;
 };
+
+type RecurrenceOption = 'none' | 'daily' | 'weekly' | 'monthly';
+
+const WEEKDAY_CODES = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
+
+function deriveRecurrenceOption(rule: string | null | undefined): RecurrenceOption {
+  if (!rule) return 'none';
+  if (rule.startsWith('FREQ=DAILY')) return 'daily';
+  if (rule.startsWith('FREQ=WEEKLY')) return 'weekly';
+  if (rule.startsWith('FREQ=MONTHLY')) return 'monthly';
+  return 'none';
+}
+
+function buildRecurrenceRule(option: RecurrenceOption, dayKey: string): string | null {
+  const day = parseDayKey(dayKey);
+  switch (option) {
+    case 'daily':
+      return 'FREQ=DAILY;INTERVAL=1';
+    case 'weekly': {
+      const code = WEEKDAY_CODES[day.getUTCDay()] ?? 'MO';
+      return `FREQ=WEEKLY;INTERVAL=1;BYDAY=${code}`;
+    }
+    case 'monthly': {
+      const dayNumber = day.getUTCDate();
+      return `FREQ=MONTHLY;INTERVAL=1;BYMONTHDAY=${dayNumber}`;
+    }
+    default:
+      return null;
+  }
+}
 
 const emptyForm: ItemFormState = {
   kind: 'task',
@@ -38,6 +77,12 @@ const emptyForm: ItemFormState = {
   title: '',
   details: null,
   status: 'todo',
+  recurrenceRule: null,
+  recurrenceUntilDay: null,
+  recurrenceCount: null,
+  recurrenceExdates: [],
+  parentId: null,
+  occurrenceDay: null,
 };
 
 const VISIBLE_DAYS = 4;
@@ -234,10 +279,10 @@ function sortItems(items: Item[]) {
     const bTimed = !!b.timeStart;
     if (aTimed !== bTimed) return aTimed ? -1 : 1;
     if (aTimed && bTimed) {
-      if (a.timeStart === b.timeStart) return a.id - b.id;
+      if (a.timeStart === b.timeStart) return String(a.id).localeCompare(String(b.id));
       return a.timeStart! < b.timeStart! ? -1 : 1;
     }
-    return a.id - b.id;
+    return String(a.id).localeCompare(String(b.id));
   });
 }
 
@@ -295,6 +340,24 @@ export default function WeekBoard({
 
   const rangeEnd = useMemo(() => rangeEndFromAnchor(anchor, VISIBLE_DAYS), [anchor]);
 
+  const fetchItemsForRange = useCallback(async () => {
+    if (!hydrated) return;
+    setLoading(true);
+    setError(null);
+    if (process.env.NODE_ENV !== 'production') {
+      console.debug('[items] fetching range', { anchor, end: rangeEnd });
+    }
+    const res = await fetch(`/api/items?start=${anchor}&end=${rangeEnd}`);
+    if (!res.ok) {
+      setError('Could not load items');
+      setLoading(false);
+      return;
+    }
+    const data = await res.json();
+    setItems(data.items);
+    setLoading(false);
+  }, [anchor, hydrated, rangeEnd]);
+
   useEffect(() => {
     const savedAnchor = typeof window !== 'undefined' ? localStorage.getItem(ANCHOR_STORAGE_KEY) : null;
     const savedPinned = typeof window !== 'undefined' ? localStorage.getItem(PIN_STORAGE_KEY) : null;
@@ -307,25 +370,8 @@ export default function WeekBoard({
   }, []);
 
   useEffect(() => {
-    if (!hydrated) return;
-    setLoading(true);
-    setError(null);
-    const fetchItems = async () => {
-      if (process.env.NODE_ENV !== 'production') {
-        console.debug('[items] fetching range', { anchor, end: rangeEnd });
-      }
-      const res = await fetch(`/api/items?start=${anchor}&end=${rangeEnd}`);
-      if (!res.ok) {
-        setError('Could not load items');
-        setLoading(false);
-        return;
-      }
-      const data = await res.json();
-      setItems(data.items);
-      setLoading(false);
-    };
-    fetchItems();
-  }, [anchor, hydrated, rangeEnd]);
+    fetchItemsForRange();
+  }, [anchor, hydrated, rangeEnd, fetchItemsForRange]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -377,14 +423,30 @@ export default function WeekBoard({
       title: values.title,
       details: values.details ?? null,
       status: values.kind === 'task' ? values.status ?? 'todo' : null,
+      recurrenceRule: values.recurrenceRule,
+      recurrenceUntilDay: values.recurrenceUntilDay,
+      recurrenceCount: values.recurrenceCount,
+      recurrenceExdates: values.recurrenceExdates,
+      recurrenceTz: TIMEZONE,
+      parentId: values.parentId,
+      occurrenceDay: values.occurrenceDay,
     } satisfies Omit<Item, 'id' | 'userId'>;
   };
 
   async function saveItem(values: ItemFormState): Promise<boolean> {
     setError(null);
     const payload = toPayload(values);
-    const method = values.id ? 'PUT' : 'POST';
-    const url = values.id ? `/api/items/${values.id}` : '/api/items';
+    const isOccurrenceEdit = Boolean(values.isOccurrence && values.sourceId);
+    if (isOccurrenceEdit) {
+      payload.occurrenceDay = values.day;
+    }
+    const method = isOccurrenceEdit ? 'POST' : values.id ? 'PUT' : 'POST';
+    const url = isOccurrenceEdit
+      ? `/api/items/${values.sourceId}/overrides`
+      : values.id
+        ? `/api/items/${values.id}`
+        : '/api/items';
+
     const res = await fetch(url, {
       method,
       headers: { 'Content-Type': 'application/json' },
@@ -408,28 +470,42 @@ export default function WeekBoard({
       }
       return false;
     }
-    const data = await res.json();
-    if (values.id) {
-      setItems((prev) => prev.map((it) => (it.id === values.id ? data.item : it)));
-    } else {
-      setItems((prev) => [...prev, data.item]);
-    }
+    await fetchItemsForRange();
     setEditing(null);
     return true;
   }
 
-  async function removeItem(id: number) {
+  async function removeItem(item: Item) {
     setError(null);
-    const res = await fetch(`/api/items/${id}`, { method: 'DELETE' });
+    if (item.isOccurrence && item.sourceId) {
+      const res = await fetch(`/api/items/${item.sourceId}/exdates`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ day: item.day }),
+      });
+      if (!res.ok) {
+        setError('Unable to delete occurrence');
+        return;
+      }
+      if (item.isOverride && typeof item.id === 'number') {
+        await fetch(`/api/items/${item.id}`, { method: 'DELETE' });
+      }
+      await fetchItemsForRange();
+      return;
+    }
+
+    if (typeof item.id !== 'number') return;
+    const res = await fetch(`/api/items/${item.id}`, { method: 'DELETE' });
     if (!res.ok) {
       setError('Unable to delete item');
       return;
     }
-    setItems((prev) => prev.filter((i) => i.id !== id));
+    await fetchItemsForRange();
   }
 
   async function markStatus(item: Item, status: TaskStatus) {
-    await saveItem({ ...item, status });
+    if (item.kind !== 'task') return;
+    await saveItem({ ...toFormStateFromItem(item), status });
   }
 
   function openNew(day: string) {
@@ -445,6 +521,27 @@ export default function WeekBoard({
     title: d.title,
     details: d.details ?? null,
     status: d.kind === 'task' ? d.status ?? 'todo' : 'todo',
+    recurrenceRule: d.recurrenceRule ?? null,
+    recurrenceUntilDay: d.recurrenceUntilDay ?? null,
+    recurrenceCount: d.recurrenceCount ?? null,
+  });
+
+  const toFormStateFromItem = (item: Item): ItemFormState => ({
+    ...emptyForm,
+    ...item,
+    id: typeof item.id === 'number' ? item.id : undefined,
+    day: item.occurrenceDay ?? item.day,
+    details: item.details ?? null,
+    status: item.kind === 'task' ? item.status ?? 'todo' : null,
+    recurrenceRule: item.recurrenceRule ?? null,
+    recurrenceUntilDay: item.recurrenceUntilDay ?? null,
+    recurrenceCount: item.recurrenceCount ?? null,
+    recurrenceExdates: item.recurrenceExdates ?? [],
+    parentId: item.parentId ?? null,
+    occurrenceDay: item.occurrenceDay ?? (item.isOccurrence ? item.day : null),
+    sourceId: item.sourceId,
+    isOccurrence: item.isOccurrence,
+    isOverride: item.isOverride,
   });
 
   function openFromDraft(d: Draft) {
@@ -660,6 +757,12 @@ export default function WeekBoard({
                             {item.timeStart ? `${formatTimeValue(item.timeStart)} ` : '• '}
                             {item.title}
                           </p>
+                          {item.isOccurrence && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-slate-800 text-[10px] px-2 py-1 text-sky-200 border border-slate-700">
+                              <span className="text-xs">↻</span>
+                              <span>{item.isOverride ? 'Edited occurrence' : 'Recurring'}</span>
+                            </span>
+                          )}
                           {item.details && (
                             <p
                               className={`text-[11px] leading-snug break-words whitespace-pre-wrap ${
@@ -688,11 +791,17 @@ export default function WeekBoard({
                               {item.status === 'done' ? 'Undo' : 'Done'}
                             </button>
                           )}
-                          <button className="hover:text-sky-100" onClick={() => setEditing({ ...item })}>
-                            Edit
+                          <button
+                            className="hover:text-sky-100"
+                            onClick={() => setEditing(toFormStateFromItem(item))}
+                          >
+                            {item.isOccurrence ? 'Edit occurrence' : 'Edit'}
                           </button>
-                          <button className="text-rose-300 hover:text-rose-200" onClick={() => removeItem(item.id)}>
-                            Delete
+                          <button
+                            className="text-rose-300 hover:text-rose-200"
+                            onClick={() => removeItem(item)}
+                          >
+                            {item.isOccurrence ? 'Delete occurrence' : 'Delete'}
                           </button>
                         </div>
                       </div>
@@ -890,11 +999,16 @@ function EditModal({
   const [dayInput, setDayInput] = useState(formatDayEU(values.day));
   const [dayError, setDayError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [recurrenceOption, setRecurrenceOption] = useState<RecurrenceOption>(
+    deriveRecurrenceOption(values.recurrenceRule)
+  );
+  const recurrenceDisabled = Boolean(local.isOccurrence || local.parentId);
 
   useEffect(() => {
     setLocal(values);
     setDayInput(formatDayEU(values.day));
     setDayError(null);
+    setRecurrenceOption(deriveRecurrenceOption(values.recurrenceRule));
   }, [values]);
 
   const update = (key: keyof ItemFormState, value: any) =>
@@ -906,9 +1020,17 @@ function EditModal({
     if (parsed) {
       setDayError(null);
       update('day', parsed);
+      if (recurrenceOption !== 'none') {
+        update('recurrenceRule', buildRecurrenceRule(recurrenceOption, parsed));
+      }
     } else {
       setDayError('Use DD.MM.YYYY');
     }
+  };
+
+  const handleRecurrenceChange = (option: RecurrenceOption) => {
+    setRecurrenceOption(option);
+    update('recurrenceRule', buildRecurrenceRule(option, local.day));
   };
 
   const handleSubmit = async () => {
@@ -964,6 +1086,23 @@ function EditModal({
           </label>
           <TimeField label="Start" value={local.timeStart} onChange={(v) => update('timeStart', v)} />
           <TimeField label="End" value={local.timeEnd} onChange={(v) => update('timeEnd', v)} />
+          <label className="flex flex-col gap-1 col-span-2">
+            <span className="text-slate-300">Recurrence</span>
+            <select
+              className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100"
+              value={recurrenceOption}
+              disabled={recurrenceDisabled}
+              onChange={(e) => handleRecurrenceChange(e.target.value as RecurrenceOption)}
+            >
+              <option value="none">None</option>
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly</option>
+            </select>
+            {recurrenceDisabled && (
+              <span className="text-[11px] text-slate-500">Editing a single occurrence</span>
+            )}
+          </label>
           <label className="flex flex-col gap-1 col-span-2">
             <span className="text-slate-300">Title</span>
             <input

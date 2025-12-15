@@ -9,10 +9,30 @@ export const itemInputSchema = z
     title: z.string().min(1).max(255),
     details: z.string().optional().nullable(),
     status: z.enum(['todo', 'done', 'canceled']).optional().nullable(),
+    recurrenceRule: z.string().optional().nullable(),
+    recurrenceTz: z.string().optional(),
+    recurrenceUntilDay: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+    recurrenceCount: z.number().int().positive().optional().nullable(),
+    recurrenceExdates: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional(),
+    parentId: z.number().int().optional().nullable(),
+    occurrenceDay: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
   })
   .strict();
 
 export type ItemInput = z.infer<typeof itemInputSchema>;
+
+export const exdateSchema = z
+  .object({
+    day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  })
+  .strict();
+
+export const overrideInputSchema = itemInputSchema
+  .omit({ day: true, parentId: true, occurrenceDay: true })
+  .extend({
+    occurrenceDay: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  })
+  .strict();
 
 export const draftOutputSchema = z.object({
   kind: z.enum(['event', 'task']),
@@ -22,6 +42,9 @@ export const draftOutputSchema = z.object({
   timeEnd: z.string().regex(/^\d{2}:\d{2}$/).nullable(),
   details: z.string().nullable().optional().transform((v) => (v === undefined ? null : v)),
   status: z.enum(['todo', 'done', 'canceled']).default('todo'),
+  recurrenceRule: z.string().optional().nullable(),
+  recurrenceUntilDay: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+  recurrenceCount: z.number().int().positive().optional().nullable(),
 });
 
 export const draftListSchema = z.object({

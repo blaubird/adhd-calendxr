@@ -49,6 +49,9 @@ function normalizeDraftOutput(data: unknown) {
     timeEnd,
     details: parsed.details ?? null,
     status: parsed.status ?? 'todo',
+    recurrenceRule: parsed.recurrenceRule ?? null,
+    recurrenceUntilDay: parsed.recurrenceUntilDay ?? null,
+    recurrenceCount: parsed.recurrenceCount ?? null,
   };
 }
 

@@ -1,6 +1,6 @@
 import { ItemRecord } from 'app/db';
 import { Item } from 'app/types';
-import { formatDayKey, normalizeDayString, normalizeTime } from './datetime';
+import { formatDayKey, normalizeDayString, normalizeTime, TIMEZONE } from './datetime';
 
 export function normalizeItemRecord(record: ItemRecord): Item {
   const dayValue =
@@ -21,6 +21,27 @@ export function normalizeItemRecord(record: ItemRecord): Item {
     title: record.title,
     details: record.details ?? null,
     status: record.status ?? null,
+    recurrenceRule: (record as any).recurrenceRule ?? null,
+    recurrenceTz: (record as any).recurrenceTz ?? TIMEZONE,
+    recurrenceUntilDay:
+      (record as any).recurrenceUntilDay != null
+        ? normalizeDayString(
+            typeof (record as any).recurrenceUntilDay === 'string'
+              ? (record as any).recurrenceUntilDay
+              : formatDayKey((record as any).recurrenceUntilDay as Date)
+          )
+        : null,
+    recurrenceCount: (record as any).recurrenceCount ?? null,
+    recurrenceExdates: Array.isArray((record as any).recurrenceExdates)
+      ? ((record as any).recurrenceExdates as (string | Date)[])
+          .map((d) => (typeof d === 'string' ? normalizeDayString(d) : formatDayKey(d as Date)))
+          .filter((v): v is string => Boolean(v))
+      : [],
+    parentId: (record as any).parentId ?? null,
+    occurrenceDay:
+      (record as any).occurrenceDay != null
+        ? formatDayKey(new Date((record as any).occurrenceDay as Date))
+        : null,
   };
 }
 
