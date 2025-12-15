@@ -22,7 +22,7 @@ Open http://localhost:3000 – you will be redirected to sign in.
 
 ## Environment variables
 
-- `DATABASE_URL` – Postgres connection string (Neon recommended). `POSTGRES_URL` is still respected for backward compatibility.
+- `DATABASE_URL` – Postgres connection string (Neon recommended). `POSTGRES_URL` is still respected for backward compatibility. Set it in `.env.local` for local work, as a GitHub Actions secret for automated migrations, and in Vercel project settings (Build & Runtime env).
 - `AUTH_SECRET` – NextAuth secret.
 - `NEXTAUTH_URL` or `AUTH_URL` – set to the deployed URL (`https://calendar.luminiteq.eu`).
 - `OPENROUTER_API_KEY` – server-side key for draft generation.
@@ -33,13 +33,29 @@ Open http://localhost:3000 – you will be redirected to sign in.
 
 Schema is defined in [`app/schema.ts`](app/schema.ts) and migrations live in [`drizzle/`](drizzle). The initial migration creates `users` and `items` tables with enums for item kind and task status.
 
-- Generate/apply migrations locally (requires `DATABASE_URL`):
+- Generate new migrations from schema changes:
 
 ```bash
-pnpm migrate:push
+pnpm db:generate
 ```
 
-- CI/CD: configure a GitHub Actions secret `DATABASE_URL`. The included workflow `.github/workflows/migrations.yml` runs migrations on pushes to `main`.
+- Apply migrations locally (requires `DATABASE_URL`):
+
+```bash
+pnpm db:migrate
+```
+
+- Sanity-check the deployed schema for required recurrence columns on `items`:
+
+```bash
+pnpm db:check
+```
+
+- CI/CD: configure a GitHub Actions secret `DATABASE_URL`. The workflow `.github/workflows/db-migrate.yml` runs `pnpm db:migrate` on pushes to `main` or when manually triggered via the "Run workflow" button on GitHub.
+
+- Vercel: set the build command to `pnpm vercel-build` so migrations run before `next build`. Ensure `DATABASE_URL` is configured as a server-side environment variable in Vercel.
+
+Recommended deployment flow: merge to `main` → GitHub applies migrations → Vercel build (with `pnpm vercel-build`) deploys against an up-to-date schema.
 
 ## Core features
 

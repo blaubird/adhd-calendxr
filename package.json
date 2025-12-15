@@ -1,6 +1,10 @@
 {
   "private": true,
   "scripts": {
+    "db:migrate": "drizzle-kit migrate",
+    "db:generate": "drizzle-kit generate:pg",
+    "db:check": "node scripts/db-check.js",
+    "vercel-build": "pnpm db:migrate && next build",
     "dev": "next dev --turbo",
     "build": "next build",
     "start": "next start",
