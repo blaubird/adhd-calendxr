@@ -11,19 +11,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         
+      # 1. Установка Node.js
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          # Добавление настройки для pnpm
-          cache: 'pnpm'
           
-      - name: Install pnpm
-        run: npm install -g pnpm
-        
+      # 2. Установка pnpm (используем официальное действие для надежной настройки PATH)
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 8 # Используем версию 8, так как она указана в package.json
+          run_install: false # Не запускаем pnpm install здесь
+          
+      # 3. Установка зависимостей
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
         
+      # 4. Применение миграций
       - name: Push migrations
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
