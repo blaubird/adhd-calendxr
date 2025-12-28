@@ -36,7 +36,7 @@ Schema is defined in [`app/schema.ts`](app/schema.ts) and migrations live in [`d
 - Generate/apply migrations locally (requires `DATABASE_URL`):
 
 ```bash
-pnpm migrate:push
+pnpm db:migrate
 ```
 
 - CI/CD: configure a GitHub Actions secret `DATABASE_URL`. The included workflow `.github/workflows/migrations.yml` runs migrations on pushes to `main`.

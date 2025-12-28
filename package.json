@@ -5,7 +5,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "migrate:push": "drizzle-kit push:pg"
+    "db:migrate": "drizzle-kit push:pg"
   },
   "dependencies": {
     "@types/node": "^20.10.5",
