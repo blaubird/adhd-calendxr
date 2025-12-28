@@ -3,19 +3,19 @@ import { eq, and, gte, lte, or, isNull, isNotNull, inArray } from 'drizzle-orm';
 import postgres from 'postgres';
 import { genSaltSync, hashSync } from 'bcrypt-ts';
 
+import { env } from './env';
 import { InsertItem, SelectItem, items, users } from './schema';
 import type { ItemInput } from './lib/validation';
 
-const connectionString =
-  process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.POSTGRES_URL_NON_POOLING;
+const runtimeUrl = env.POSTGRES_URL ?? env.RUNTIME_DATABASE_URL ?? env.DATABASE_URL;
 
-if (!connectionString) {
-  throw new Error('DATABASE_URL is required');
+if (!runtimeUrl) {
+  throw new Error('Missing pooled DB url (POSTGRES_URL/RUNTIME_DATABASE_URL)');
 }
 
-const sslMode = connectionString.includes('sslmode=')
-  ? connectionString
-  : `${connectionString}${connectionString.includes('?') ? '&' : '?'}sslmode=require`;
+const sslMode = runtimeUrl.includes('sslmode=')
+  ? runtimeUrl
+  : `${runtimeUrl}${runtimeUrl.includes('?') ? '&' : '?'}sslmode=require`;
 
 const client = postgres(sslMode);
 export const db = drizzle(client, { schema: { users, items } });
