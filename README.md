@@ -22,9 +22,16 @@ Open http://localhost:3000 – you will be redirected to sign in.
 
 ## Environment variables
 
-- `DATABASE_URL` – Postgres connection string (Neon recommended). `POSTGRES_URL` is still respected for backward compatibility.
+Runtime (Vercel):
+- `POSTGRES_URL` – pooled Postgres connection string used by the app at runtime.
+
+CI/Local migrations:
+- `POSTGRES_URL_NON_POOLING` – direct/non-pooling URL used for migrations (map to `DATABASE_URL` in CI).
+
+Other:
+- `DATABASE_URL` – used by drizzle-kit for migrations in CI/local only (set to the non-pooling URL).
 - `AUTH_SECRET` – NextAuth secret.
-- `NEXTAUTH_URL` or `AUTH_URL` – set to the deployed URL (`https://calendar.luminiteq.eu`).
+- `NEXTAUTH_URL` – set to the deployed URL (`https://calendar.luminiteq.eu`).
 - `OPENROUTER_API_KEY` – server-side key for draft generation.
 - `OPENROUTER_MODEL` – optional override (defaults to `google/gemma-3-27b-it:free`).
 - `APP_TIMEZONE` – optional timezone override; defaults to `Europe/Paris`.
@@ -33,13 +40,13 @@ Open http://localhost:3000 – you will be redirected to sign in.
 
 Schema is defined in [`app/schema.ts`](app/schema.ts) and migrations live in [`drizzle/`](drizzle). The initial migration creates `users` and `items` tables with enums for item kind and task status.
 
-- Generate/apply migrations locally (requires `DATABASE_URL`):
+- Generate/apply migrations locally (requires non-pooling `DATABASE_URL`):
 
 ```bash
-pnpm migrate:push
+DATABASE_URL=$POSTGRES_URL_NON_POOLING pnpm db:push
 ```
 
-- CI/CD: configure a GitHub Actions secret `DATABASE_URL`. The included workflow `.github/workflows/migrations.yml` runs migrations on pushes to `main`.
+- CI/CD: configure GitHub Actions secrets `POSTGRES_URL_NON_POOLING` and `VERCEL_TOKEN`. The workflow `.github/workflows/migrate-deploy.yml` runs migrations before deploying to Vercel.
 
 ## Core features
 

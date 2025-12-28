@@ -1,0 +1,43 @@
+name: Migrate & Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.POSTGRES_URL_NON_POOLING }}
+      NODE_ENV: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm drizzle-kit generate || true
+      - run: pnpm drizzle-kit push
+
+  deploy:
+    needs: migrate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+      - name: Deploy to Vercel (prod)
+        run: |
+          pnpm dlx vercel pull --yes --environment=production --token ${{ secrets.VERCEL_TOKEN }}
+          pnpm dlx vercel build --prod --token ${{ secrets.VERCEL_TOKEN }}
+          pnpm dlx vercel deploy --prebuilt --prod --token ${{ secrets.VERCEL_TOKEN }}

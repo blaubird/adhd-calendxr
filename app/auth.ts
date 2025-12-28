@@ -3,6 +3,7 @@ import Credentials from 'next-auth/providers/credentials';
 import { compare } from 'bcrypt-ts';
 import { getUser } from 'app/db';
 import { authConfig } from 'app/auth.config';
+import { env } from 'app/env';
 
 export const {
   handlers: { GET, POST },
@@ -11,6 +12,8 @@ export const {
   signOut,
 } = NextAuth({
   ...authConfig,
+  secret: env.AUTH_SECRET,
+  trustHost: true,
   session: { strategy: 'jwt' },
   providers: [
     Credentials({

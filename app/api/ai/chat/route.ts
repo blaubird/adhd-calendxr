@@ -11,6 +11,7 @@ import {
 import { normalizeDayString, normalizeTime, nowInTz, TIMEZONE } from 'app/lib/datetime';
 import { format } from 'date-fns';
 import { enGB } from 'date-fns/locale';
+import { env } from 'app/env';
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const DEFAULT_MODEL = 'google/gemma-3-27b-it:free';
@@ -74,19 +75,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const apiKey = process.env.OPENROUTER_API_KEY;
+  const apiKey = env.OPENROUTER_API_KEY;
   if (!apiKey) {
     return NextResponse.json({ error: 'OpenRouter key missing' }, { status: 500 });
   }
 
-  const model = process.env.OPENROUTER_MODEL || DEFAULT_MODEL;
+  const model = env.OPENROUTER_MODEL || DEFAULT_MODEL;
   const body = await request.json();
   const parsed = chatRequestSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: 'Invalid payload', details: parsed.error.flatten() }, { status: 400 });
   }
 
-  if (process.env.NODE_ENV !== 'production') {
+  if (env.NODE_ENV !== 'production') {
     console.debug('[ai/chat] request', {
       user: session.user.id,
       model,
@@ -117,7 +118,7 @@ export async function POST(request: Request) {
     });
 
     if (!aiResponse.ok) {
-      if (process.env.NODE_ENV !== 'production') {
+      if (env.NODE_ENV !== 'production') {
         console.debug('[ai/chat] OpenRouter error', { status: aiResponse.status });
       }
       return NextResponse.json({ error: 'OpenRouter error', status: aiResponse.status }, { status: 502 });
@@ -133,7 +134,7 @@ export async function POST(request: Request) {
     try {
       parsedContent = normalizeResult(extractJsonContent(content));
     } catch (err) {
-      if (process.env.NODE_ENV !== 'production') {
+      if (env.NODE_ENV !== 'production') {
         console.debug('[ai/chat] normalization failed', { message: (err as Error)?.message });
       }
       return NextResponse.json({
@@ -142,7 +143,7 @@ export async function POST(request: Request) {
       });
     }
 
-    if (process.env.NODE_ENV !== 'production') {
+    if (env.NODE_ENV !== 'production') {
       console.debug('[ai/chat] response payload', {
         needClarification: parsedContent.needClarification,
         drafts: 'drafts' in parsedContent ? parsedContent.drafts.length : undefined,
@@ -150,7 +151,7 @@ export async function POST(request: Request) {
     }
     return NextResponse.json(parsedContent);
   } catch (error: any) {
-    if (process.env.NODE_ENV !== 'production') {
+    if (env.NODE_ENV !== 'production') {
       console.error('[ai/chat] request failed', { message: error?.message, name: error?.name });
     }
     if (error?.name === 'AbortError') {
@@ -161,4 +162,3 @@ export async function POST(request: Request) {
     clearTimeout(timeout);
   }
 }
-

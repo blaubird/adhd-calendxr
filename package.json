@@ -1,11 +1,14 @@
 {
   "private": true,
   "scripts": {
-    "dev": "next dev --turbo",
+    "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "migrate:push": "drizzle-kit push:pg"
+    "db:generate": "drizzle-kit generate",
+    "db:push": "drizzle-kit push",
+    "ci:migrate": "drizzle-kit push",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@types/node": "^20.10.5",
