@@ -119,7 +119,9 @@ function addOccurrence(
   if (occurrenceDate < range.start || occurrenceDate > range.end) {
     return true;
   }
-  const override = overrides.get(dayKey);
+  // Key is scoped per series: `parentId:occurrenceDay`
+  const overrideKey = `${base.id}:${dayKey}`;
+  const override = overrides.get(overrideKey);
   if (override) {
     occurrences.push({
       ...override,
@@ -298,7 +300,9 @@ export function expandRecurringItems(
   const overrides = items.filter((item) => item.parentId && item.occurrenceDay);
   const overrideMap = new Map<string, Item>();
   overrides.forEach((ov) => {
-    const key = formatDayKey(parseDayKey(ov.occurrenceDay || ov.day));
+    const dayKey = formatDayKey(parseDayKey(ov.occurrenceDay || ov.day));
+    // Key is scoped per series to avoid collisions between different recurring series
+    const key = `${ov.parentId}:${dayKey}`;
     overrideMap.set(key, ov);
   });
 

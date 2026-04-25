@@ -21,8 +21,7 @@ jobs:
           node-version: 20
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
-      - run: pnpm drizzle-kit generate || true
-      - run: pnpm drizzle-kit push
+      - run: pnpm run ci:migrate
 
   deploy:
     needs: migrate

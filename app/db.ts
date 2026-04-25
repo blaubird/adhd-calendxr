@@ -13,7 +13,7 @@ if (!runtimeUrl) {
   throw new Error('Missing pooled DB url (POSTGRES_URL/RUNTIME_DATABASE_URL)');
 }
 
-const sslMode = runtimeUrl.includes('sslmode=')
+const sslMode = runtimeUrl.includes('localhost') || runtimeUrl.includes('sslmode=')
   ? runtimeUrl
   : `${runtimeUrl}${runtimeUrl.includes('?') ? '&' : '?'}sslmode=require`;
 
@@ -45,6 +45,8 @@ function normalizeItemPayload(payload: ItemInput): ItemWritePayload {
     recurrenceUntilDay: payload.recurrenceUntilDay ?? null,
     recurrenceCount: payload.recurrenceCount ?? null,
     recurrenceExdates: payload.recurrenceExdates ?? [],
+    color: payload.color ?? null,
+    order: payload.order ?? 0,
     parentId: payload.parentId ?? null,
     occurrenceDay: payload.occurrenceDay ?? null,
   } satisfies ItemWritePayload;
@@ -151,7 +153,12 @@ export async function createOverride(
     recurrenceExdates: [],
   });
 
-  return db.insert(items).values({ ...values, userId }).returning();
+  return db.insert(items).values({ ...values, userId })
+    .onConflictDoUpdate({
+      target: [items.parentId, items.occurrenceDay],
+      set: { ...values, updatedAt: new Date() }
+    })
+    .returning();
 }
 
 export type ItemRecord = SelectItem;

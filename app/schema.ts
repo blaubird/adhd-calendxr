@@ -45,6 +45,8 @@ export const items = pgTable(
     recurrenceUntilDay: date('recurrence_until_day'),
     recurrenceCount: integer('recurrence_count'),
     recurrenceExdates: date('recurrence_exdates').array().notNull().default(sql`'{}'::date[]`),
+    color: text('color'),
+    order: integer('order').notNull().default(0),
     parentId: integer('parent_id'),
     occurrenceDay: date('occurrence_day'),
     createdAt: timestamp('created_at', { withTimezone: true })

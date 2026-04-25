@@ -13,8 +13,8 @@ import { format } from 'date-fns';
 import { enGB } from 'date-fns/locale';
 import { env } from 'app/env';
 
-const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
-const DEFAULT_MODEL = 'google/gemma-3-27b-it:free';
+const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
+const DEFAULT_MODEL = 'ft:gpt-4.1-nano-2025-04-14:luminiteq:calendar:Cn5UR8JN';
 
 function buildSystemPrompt(range?: { start: string; end: string }) {
   const now = nowInTz(new Date());
@@ -24,7 +24,7 @@ function buildSystemPrompt(range?: { start: string; end: string }) {
     ? `Visible calendar window: ${range.start} to ${range.end} (inclusive).`
     : 'Visible calendar window: current anchor + 4 days (inclusive).';
 
-  return `You are an assistant that turns free-form RU/EN scheduling requests into JSON drafts for a calendar.\nTime zone: ${TIMEZONE}.\nCurrent datetime: ${isoNow} (${humanNow}). ${rangeText}\n\nContract:\n- Always respond with pure JSON only.\n- JSON shape: either {"drafts": Draft[]} or {"needClarification": true, "questions": string[]}\n- Draft fields: kind ("task" | "event"), day (YYYY-MM-DD), timeStart (HH:mm or null), timeEnd (HH:mm or null), title, details (or null), status ("todo" | "done" | "canceled", default todo).\n- Interpret relative phrases like today/tomorrow/weekdays using the configured time zone.\n- Always use 24-hour times and ISO-like dates.\n- If the request is unclear or missing day/time, ask concise clarification questions instead of guessing.\n- Never include explanations or code fences; return JSON only.`;
+  return `You are an assistant that turns free-form RU/EN scheduling requests into JSON drafts for a calendar.\nTime zone: ${TIMEZONE}.\nCurrent datetime: ${isoNow} (${humanNow}). ${rangeText}\n\nContract:\n- Always respond with pure JSON only.\n- JSON shape: either {"drafts": Draft[]} or {"needClarification": true, "questions": string[]}\n- Draft fields: kind ("task" | "event"), day (YYYY-MM-DD), timeStart (HH:mm or null), timeEnd (HH:mm or null), title, details (or null), status ("todo" | "done" | "canceled", default todo), recurrenceRule (string or null), recurrenceUntilDay (YYYY-MM-DD or null), recurrenceCount (integer or null).\n- Interpret relative phrases like today/tomorrow/weekdays using the configured time zone.\n- Always use 24-hour times and ISO-like dates.\n- RECURRENCE RULES: If the user mentions repeating events (каждый день / every day / каждую неделю / every Monday / раз в месяц / monthly etc.), set recurrenceRule using the format: FREQ=DAILY|WEEKLY|MONTHLY;INTERVAL=N[;BYDAY=MO,TU,...][;BYMONTHDAY=15]. Set day to the FIRST occurrence. BYDAY uses codes MO TU WE TH FR SA SU. If the user gives an end date, set recurrenceUntilDay. If they say "N times", set recurrenceCount.\n- If no recurrence is mentioned, set recurrenceRule to null.\n- Never include explanations or code fences; return JSON only.\n- If the request is unclear and you cannot create even one draft, ask concise clarification questions.`;
 }
 
 function extractJsonContent(raw: string) {
@@ -75,12 +75,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const apiKey = env.OPENROUTER_API_KEY;
+  const apiKey = env.OPENAI_API_KEY;
   if (!apiKey) {
-    return NextResponse.json({ error: 'OpenRouter key missing' }, { status: 500 });
+    return NextResponse.json({ error: 'OpenAI key missing' }, { status: 500 });
   }
 
-  const model = env.OPENROUTER_MODEL || DEFAULT_MODEL;
+  const model = env.OPENAI_MODEL || DEFAULT_MODEL;
   const body = await request.json();
   const parsed = chatRequestSchema.safeParse(body);
   if (!parsed.success) {
@@ -97,10 +97,10 @@ export async function POST(request: Request) {
   }
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 20000);
+  const timeout = setTimeout(() => controller.abort(), 60000);
 
   try {
-    const aiResponse = await fetch(OPENROUTER_URL, {
+    const aiResponse = await fetch(OPENAI_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -119,9 +119,9 @@ export async function POST(request: Request) {
 
     if (!aiResponse.ok) {
       if (env.NODE_ENV !== 'production') {
-        console.debug('[ai/chat] OpenRouter error', { status: aiResponse.status });
+        console.debug('[ai/chat] OpenAI error', { status: aiResponse.status });
       }
-      return NextResponse.json({ error: 'OpenRouter error', status: aiResponse.status }, { status: 502 });
+      return NextResponse.json({ error: 'OpenAI error', status: aiResponse.status }, { status: 502 });
     }
 
     const completion = await aiResponse.json();

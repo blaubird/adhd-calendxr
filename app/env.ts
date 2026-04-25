@@ -7,8 +7,8 @@ const schema = z.object({
   POSTGRES_URL: z.string().url().optional(),
   RUNTIME_DATABASE_URL: z.string().url().optional(),
   DATABASE_URL: z.string().url().optional(),
-  OPENROUTER_API_KEY: z.string().optional(),
-  OPENROUTER_MODEL: z.string().optional(),
+  OPENAI_API_KEY: z.string().optional(),
+  OPENAI_MODEL: z.string().optional(),
   APP_TIMEZONE: z.string().optional(),
 });
 

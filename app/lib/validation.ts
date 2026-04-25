@@ -14,6 +14,8 @@ export const itemInputSchema = z
     recurrenceUntilDay: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
     recurrenceCount: z.number().int().positive().optional().nullable(),
     recurrenceExdates: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional(),
+    color: z.string().optional().nullable(),
+    order: z.number().int().optional().nullable(),
     parentId: z.number().int().optional().nullable(),
     occurrenceDay: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
   })

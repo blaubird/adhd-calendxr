@@ -2,9 +2,9 @@ import './globals.css';
 
 import { GeistSans } from 'geist/font/sans';
 
-const title = 'Calendxr — focused 4-day board';
+const title = 'Calendxr — monthly calendar brain';
 const description =
-  'Private ADHD-friendly calendar/task board with auth, voice capture drafts, and a focused 4-day view.';
+  'Private ADHD-friendly calendar with monthly view, AI drafts, and unified item model.';
 
 export const metadata = {
   title,
@@ -23,8 +23,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="bg-sand text-slate-100">
-      <body className={`${GeistSans.variable} bg-sand text-slate-100`}>{children}</body>
+    <html lang="en">
+      <body className={`${GeistSans.variable}`}>{children}</body>
     </html>
   );
 }

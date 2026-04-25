@@ -13,6 +13,8 @@ export type Item = {
   title: string;
   details: string | null;
   status: TaskStatus;
+  color?: string | null;
+  order?: number | null;
   recurrenceRule?: string | null;
   recurrenceTz?: string;
   recurrenceUntilDay?: string | null;
