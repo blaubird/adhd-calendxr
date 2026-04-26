@@ -46,17 +46,12 @@ function formatTelegramDate(date: Date, language: TelegramLanguage) {
 }
 
 function formatDayTitle(header: string | TelegramDayHeader, language: TelegramLanguage) {
-  if (typeof header === 'string') return `☾ ${escapeTelegramHtml(header)}`;
+  if (typeof header === 'string') return `<b>${escapeTelegramHtml(header)}</b>`;
 
   const offset = typeof header.offsetDays === 'number'
     ? ` · D${header.offsetDays >= 0 ? '+' : ''}${header.offsetDays}`
     : '';
-  return `☾ ${escapeTelegramHtml(header.label)}${offset}\n${escapeTelegramHtml(formatTelegramDate(header.date, language))} · ${escapeTelegramHtml(TIMEZONE)}`;
-}
-
-function formatTelegramStatusPrefix(item: Pick<Item, 'status' | 'kind'>) {
-  if (item.status === 'done') return '✓';
-  return item.kind === 'task' ? '□' : '◦';
+  return `<b>${escapeTelegramHtml(header.label)}${offset}</b>\n${escapeTelegramHtml(formatTelegramDate(header.date, language))} · ${escapeTelegramHtml(TIMEZONE)}`;
 }
 
 export function formatTelegramTimeRange(timeStart: string | null | undefined, timeEnd: string | null | undefined) {
@@ -67,10 +62,10 @@ export function formatTelegramItemLine(item: Item, language: TelegramLanguage = 
   const messages = t(language);
   const title = escapeTelegramHtml(item.title);
 
-  if (!item.timeStart) return `${formatTelegramStatusPrefix(item)} ${title}`;
+  if (!item.timeStart) return title;
 
   const time = escapeTelegramHtml(formatTelegramTimeRange(item.timeStart, item.timeEnd) || messages.noTime);
-  return `⏱ ${time}\n◦ ${title}`;
+  return `${time}\n${title}`;
 }
 
 export function formatTelegramDraftLine(draft: TelegramDraftLike, language: TelegramLanguage = 'en') {
@@ -108,19 +103,17 @@ export function formatTelegramDay(
       ? t(language).emptyDay
       : emptyTextOrLanguage;
   const messages = t(language);
-  const untimed = items.filter((item) => !item.timeStart);
   const timed = items.filter((item) => item.timeStart).sort(sortByTime);
+  const untimed = items.filter((item) => !item.timeStart);
+  const itemBlocks = [...timed, ...untimed].map((item) => formatTelegramItemLine(item, language));
 
   let text = `${formatDayTitle(dateHeader, language)}\n\n`;
 
-  if (timed.length) {
-    text += `◇ ${escapeTelegramHtml(messages.timed)}\n${timed.map((item) => formatTelegramItemLine(item, language)).join('\n\n')}\n\n`;
-  }
-  if (untimed.length) {
-    text += `◇ ${escapeTelegramHtml(messages.untimed)}\n${untimed.map((item) => formatTelegramItemLine(item, language)).join('\n')}\n\n`;
+  if (itemBlocks.length) {
+    text += `${itemBlocks.join('\n\n')}\n\n`;
   }
   if (!untimed.length && !timed.length) {
-    text += `◇ ${escapeTelegramHtml(messages.nothingPlanned)}\n${escapeTelegramHtml(emptyText)}\n\n`;
+    text += `${escapeTelegramHtml(messages.nothingPlanned)}\n${escapeTelegramHtml(emptyText)}\n\n`;
   }
 
   return text.trim();
@@ -145,7 +138,7 @@ export function formatTelegramRange(
   const start = parseDayKey(startDay);
   const end = parseDayKey(endDay);
   const days = differenceInCalendarDays(end, start) + 1;
-  let text = `☾ ${escapeTelegramHtml(label)}\n${escapeTelegramHtml(formatTelegramDate(start, language))} – ${escapeTelegramHtml(formatTelegramDate(end, language))} · ${escapeTelegramHtml(TIMEZONE)}\n\n`;
+  let text = `<b>${escapeTelegramHtml(label)}</b>\n${escapeTelegramHtml(formatTelegramDate(start, language))} – ${escapeTelegramHtml(formatTelegramDate(end, language))} · ${escapeTelegramHtml(TIMEZONE)}\n\n`;
 
   for (let i = 0; i < days; i++) {
     const day = addDays(start, i);
@@ -158,12 +151,12 @@ export function formatTelegramRange(
         return sortByTime(a, b);
       });
 
-    text += `◇ ${escapeTelegramHtml(format(day, 'EEE d MMM', { locale: DATE_LOCALES[language] }))}\n`;
+    text += `<b>${escapeTelegramHtml(format(day, 'EEE d MMM', { locale: DATE_LOCALES[language] }))}</b>\n`;
     if (!dayItems.length) {
       text += `${escapeTelegramHtml(messages.noItems)}\n\n`;
       continue;
     }
-    text += `${dayItems.map((item) => formatTelegramItemLine(item, language)).join('\n')}\n\n`;
+    text += `${dayItems.map((item) => formatTelegramItemLine(item, language)).join('\n\n')}\n\n`;
   }
 
   return text.trim();
