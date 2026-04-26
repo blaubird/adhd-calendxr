@@ -32,9 +32,18 @@ Other:
 - `DATABASE_URL` – used by drizzle-kit for migrations in CI/local only (set to the non-pooling URL).
 - `AUTH_SECRET` – NextAuth secret.
 - `NEXTAUTH_URL` – set to the deployed URL (`https://calendar.luminiteq.eu`).
-- `OPENROUTER_API_KEY` – server-side key for draft generation.
-- `OPENROUTER_MODEL` – optional override (defaults to `google/gemma-3-27b-it:free`).
+- `OPENAI_API_KEY` – server-side key for draft generation.
+- `OPENAI_MODEL` – optional model override for draft generation.
 - `APP_TIMEZONE` – optional timezone override; defaults to `Europe/Paris`.
+- `APP_BASE_URL` – local or production base URL used by Telegram webhook setup.
+- `TELEGRAM_BOT_TOKEN` – Telegram bot token.
+- `TELEGRAM_CHAT_ID` – chat that receives digest messages.
+- `TELEGRAM_ALLOWED_CHAT_ID` – only this chat can use the bot.
+- `TELEGRAM_WEBHOOK_SECRET` – secret token Telegram sends to the webhook route.
+- `TELEGRAM_MODE` – `polling` locally, `webhook` in production.
+- `TELEGRAM_TIMEZONE` – Telegram-facing timezone, usually `Europe/Paris`.
+- `TELEGRAM_DIGEST_HOUR` – desired local digest hour, usually `9`.
+- `CRON_SECRET` – secret used to protect the production digest endpoint.
 
 ## Database & migrations
 
@@ -67,3 +76,102 @@ DATABASE_URL=$POSTGRES_URL_NON_POOLING pnpm db:push
 - All dates are stored as `YYYY-MM-DD` with Europe/Paris-friendly defaults on the parser. Times are optional (`HH:mm`, 24-hour) and timed items sort first.
 - AI date grounding: server prompts always include the current Europe/Paris datetime and the visible calendar range. Outputs are validated/normalized to ISO day keys and 24-hour times; unclear inputs trigger clarification instead of guessing.
 - Speech recognition depends on browser support (webkit implementation on Chrome). If unsupported, the UI surfaces an error and you can still add items manually.
+
+## Telegram Local / Production Workflow
+
+Telegram Phase 1 has two transports that reuse the same shared handler:
+
+- Local polling: `scripts/telegram-dev.ts`
+- Production webhook: `POST /api/telegram/webhook`
+
+Both paths enforce `TELEGRAM_ALLOWED_CHAT_ID`, support `/start`, `/help`, `/today`, `/tomorrow`, `/week`, natural-language draft creation, and Confirm / Cancel callbacks.
+
+### Local development
+
+Before local polling, remove the Telegram webhook so `getUpdates` can receive messages:
+
+```bash
+pnpm telegram:delete-webhook
+pnpm dev
+pnpm telegram:dev
+```
+
+Local `.env` should use:
+
+```env
+TELEGRAM_MODE=polling
+APP_BASE_URL=http://localhost:3000
+```
+
+### Production deployment
+
+After pushing and waiting for Vercel to deploy:
+
+```bash
+pnpm telegram:set-webhook
+pnpm telegram:webhook-info
+```
+
+`telegram:set-webhook` points Telegram to:
+
+```txt
+${APP_BASE_URL}/api/telegram/webhook
+```
+
+and sends `TELEGRAM_WEBHOOK_SECRET` as Telegram's `secret_token`. The token itself is never printed.
+
+Production env should use:
+
+```env
+TELEGRAM_MODE=webhook
+APP_BASE_URL=https://calendar.luminiteq.eu
+```
+
+### Switching back to local
+
+```bash
+pnpm telegram:delete-webhook
+pnpm telegram:dev
+```
+
+### Digest
+
+Local manual digest:
+
+```bash
+pnpm telegram:digest
+```
+
+Production manual digest test:
+
+```bash
+curl -H "Authorization: Bearer <CRON_SECRET>" "https://calendar.luminiteq.eu/api/telegram/digest"
+```
+
+The digest endpoint sends today's recurrence-expanded items to `TELEGRAM_CHAT_ID` and is protected by `CRON_SECRET`.
+
+### Vercel Cron
+
+`vercel.json` schedules:
+
+```txt
+0 7 * * *
+```
+
+Vercel cron is UTC. This is 09:00 in Paris during CEST and 08:00 during CET. For exact 09:00 Europe/Paris year-round, replace this later with an hourly cron window plus durable idempotency.
+
+Vercel Cron requests include `Authorization: Bearer $CRON_SECRET` when `CRON_SECRET` is configured in Vercel.
+
+### Webhook security
+
+`POST /api/telegram/webhook` requires:
+
+```txt
+X-Telegram-Bot-Api-Secret-Token: <TELEGRAM_WEBHOOK_SECRET>
+```
+
+Invalid or missing secrets are rejected before the update is processed.
+
+### Pending Telegram Drafts
+
+Confirm / Cancel callbacks use the `telegram_pending_drafts` Postgres table, not in-memory state. This keeps production webhook callbacks reliable on Vercel serverless instances and also keeps local polling behavior aligned with production.

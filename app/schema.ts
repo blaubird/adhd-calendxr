@@ -3,6 +3,7 @@ import {
   index,
   integer,
   foreignKey,
+  jsonb,
   pgEnum,
   pgTable,
   serial,
@@ -70,6 +71,28 @@ export const items = pgTable(
   })
 );
 
+export const telegramPendingDrafts = pgTable(
+  'telegram_pending_drafts',
+  {
+    id: varchar('id', { length: 64 }).primaryKey(),
+    chatId: varchar('chat_id', { length: 64 }).notNull(),
+    draft: jsonb('draft').notNull(),
+    status: varchar('status', { length: 20 }).notNull().default('pending'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  },
+  (table) => ({
+    chatStatusIdx: index('telegram_pending_drafts_chat_status_idx').on(table.chatId, table.status),
+    expiresAtIdx: index('telegram_pending_drafts_expires_at_idx').on(table.expiresAt),
+  })
+);
+
 export type InsertItem = typeof items.$inferInsert;
 export type SelectItem = typeof items.$inferSelect;
 export type SelectUser = typeof users.$inferSelect;
+export type SelectTelegramPendingDraft = typeof telegramPendingDrafts.$inferSelect;
