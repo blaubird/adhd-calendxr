@@ -1,11 +1,12 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
-import { eq, and, gte, lte, or, isNull, isNotNull, inArray } from 'drizzle-orm';
+import { eq, and, gte, lte, lt, or, isNull, isNotNull, inArray } from 'drizzle-orm';
 import postgres from 'postgres';
 import { genSaltSync, hashSync } from 'bcrypt-ts';
+import { randomUUID } from 'crypto';
 
 import { env } from './env';
-import { InsertItem, SelectItem, items, users } from './schema';
-import type { ItemInput } from './lib/validation';
+import { InsertItem, SelectItem, items, telegramPendingDrafts, users } from './schema';
+import { itemInputSchema, type ItemInput } from './lib/validation';
 
 const runtimeUrl = env.POSTGRES_URL ?? env.RUNTIME_DATABASE_URL ?? env.DATABASE_URL;
 
@@ -18,7 +19,7 @@ const sslMode = runtimeUrl.includes('localhost') || runtimeUrl.includes('sslmode
   : `${runtimeUrl}${runtimeUrl.includes('?') ? '&' : '?'}sslmode=require`;
 
 const client = postgres(sslMode);
-export const db = drizzle(client, { schema: { users, items } });
+export const db = drizzle(client, { schema: { users, items, telegramPendingDrafts } });
 
 export async function getUser(email: string) {
   return await db.select().from(users).where(eq(users.email, email));
@@ -159,6 +160,90 @@ export async function createOverride(
       set: { ...values, updatedAt: new Date() }
     })
     .returning();
+}
+
+const TELEGRAM_DRAFT_TTL_MS = 24 * 60 * 60 * 1000;
+
+export async function createTelegramPendingDraft(chatId: string, payload: unknown) {
+  const draft = itemInputSchema.parse(payload);
+  const expiresAt = new Date(Date.now() + TELEGRAM_DRAFT_TTL_MS);
+
+  await cleanupExpiredTelegramDrafts();
+
+  const [record] = await db
+    .insert(telegramPendingDrafts)
+    .values({
+      id: randomUUID(),
+      chatId,
+      draft,
+      status: 'pending',
+      expiresAt,
+    })
+    .returning();
+
+  return record;
+}
+
+export async function confirmTelegramPendingDraft(userId: number, draftId: string, chatId: string) {
+  return db.transaction(async (tx) => {
+    const [record] = await tx
+      .update(telegramPendingDrafts)
+      .set({ status: 'confirming', updatedAt: new Date() })
+      .where(
+        and(
+          eq(telegramPendingDrafts.id, draftId),
+          eq(telegramPendingDrafts.chatId, chatId),
+          eq(telegramPendingDrafts.status, 'pending'),
+          gte(telegramPendingDrafts.expiresAt, new Date())
+        )
+      )
+      .returning();
+
+    if (!record) return null;
+
+    const draft = itemInputSchema.parse(record.draft);
+    const values = normalizeItemPayload(draft);
+    const [item] = await tx.insert(items).values({ ...values, userId }).returning();
+
+    await tx
+      .update(telegramPendingDrafts)
+      .set({ status: 'confirmed', updatedAt: new Date() })
+      .where(eq(telegramPendingDrafts.id, draftId));
+
+    return { draft, item };
+  });
+}
+
+export async function cancelTelegramPendingDraft(draftId: string, chatId: string) {
+  const [record] = await db
+    .update(telegramPendingDrafts)
+    .set({ status: 'cancelled', updatedAt: new Date() })
+    .where(
+      and(
+        eq(telegramPendingDrafts.id, draftId),
+        eq(telegramPendingDrafts.chatId, chatId),
+        eq(telegramPendingDrafts.status, 'pending')
+      )
+    )
+    .returning();
+
+  return record ?? null;
+}
+
+export async function cleanupExpiredTelegramDrafts() {
+  await db
+    .delete(telegramPendingDrafts)
+    .where(
+      and(
+        lt(telegramPendingDrafts.expiresAt, new Date()),
+        or(
+          eq(telegramPendingDrafts.status, 'pending'),
+          eq(telegramPendingDrafts.status, 'confirming'),
+          eq(telegramPendingDrafts.status, 'cancelled'),
+          eq(telegramPendingDrafts.status, 'confirmed')
+        )
+      )
+    );
 }
 
 export type ItemRecord = SelectItem;

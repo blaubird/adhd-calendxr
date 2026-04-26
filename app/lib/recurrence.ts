@@ -1,11 +1,8 @@
 import {
   addDays,
   addMonths,
-  addWeeks,
   differenceInCalendarDays,
   differenceInCalendarMonths,
-  differenceInCalendarWeeks,
-  startOfWeek,
 } from 'date-fns';
 import { Item } from 'app/types';
 import { formatDayKey, parseDayKey, TIMEZONE } from './datetime';
@@ -28,6 +25,31 @@ const WEEKDAY_CODES: Record<string, number> = {
   FR: 5,
   SA: 6,
 };
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+function startOfUtcDay(date: Date) {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+}
+
+function addUtcDays(date: Date, amount: number) {
+  const day = startOfUtcDay(date);
+  return new Date(day.getTime() + amount * MS_PER_DAY);
+}
+
+function addUtcWeeks(date: Date, amount: number) {
+  return addUtcDays(date, amount * 7);
+}
+
+function differenceInUtcCalendarWeeks(later: Date, earlier: Date) {
+  return Math.floor((startOfUtcDay(later).getTime() - startOfUtcDay(earlier).getTime()) / (7 * MS_PER_DAY));
+}
+
+function startOfUtcWeek(date: Date, weekStartsOn: number) {
+  const day = startOfUtcDay(date);
+  const offset = (day.getUTCDay() - weekStartsOn + 7) % 7;
+  return addUtcDays(day, -offset);
+}
 
 function parseUntil(value?: string): Date | null {
   if (!value) return null;
@@ -188,16 +210,16 @@ function expandWeekly(
 ) {
   const anchor = parseDayKey(base.day);
   const weekStartsOn = 1 as const;
-  const anchorWeekStart = startOfWeek(anchor, { weekStartsOn });
+  const anchorWeekStart = startOfUtcWeek(anchor, weekStartsOn);
   const daysOfWeek = (rule.byDay && rule.byDay.length > 0)
     ? rule.byDay
     : [anchor.getUTCDay()];
   const produced = { value: 0 };
 
-  const startWeek = startOfWeek(range.start > anchor ? range.start : anchor, { weekStartsOn });
+  const startWeek = startOfUtcWeek(range.start > anchor ? range.start : anchor, weekStartsOn);
   const weeksFromAnchorToStart = Math.max(
     0,
-    differenceInCalendarWeeks(startWeek, anchorWeekStart, { weekStartsOn })
+    differenceInUtcCalendarWeeks(startWeek, anchorWeekStart)
   );
   produced.value = Math.floor(weeksFromAnchorToStart / rule.interval) * daysOfWeek.length;
 
@@ -206,19 +228,19 @@ function expandWeekly(
 
   while (currentWeek <= range.end && safety < 2000) {
     safety += 1;
-    const weeksFromAnchor = differenceInCalendarWeeks(currentWeek, anchorWeekStart, { weekStartsOn });
+    const weeksFromAnchor = differenceInUtcCalendarWeeks(currentWeek, anchorWeekStart);
     if (weeksFromAnchor < 0) {
-      currentWeek = addWeeks(currentWeek, 1);
+      currentWeek = addUtcWeeks(currentWeek, 1);
       continue;
     }
     if (weeksFromAnchor % rule.interval !== 0) {
-      currentWeek = addWeeks(currentWeek, 1);
+      currentWeek = addUtcWeeks(currentWeek, 1);
       continue;
     }
 
     for (const weekday of daysOfWeek) {
       const offset = (weekday + 7 - 1) % 7; // convert JS weekday to week starting Monday
-      const candidate = addDays(currentWeek, offset);
+      const candidate = addUtcDays(currentWeek, offset);
       if (candidate < anchor) continue;
       const keepGoing = addOccurrence(
         occurrences,
@@ -233,7 +255,7 @@ function expandWeekly(
       if (!keepGoing) return;
     }
 
-    currentWeek = addWeeks(currentWeek, 1);
+    currentWeek = addUtcWeeks(currentWeek, 1);
   }
 }
 
