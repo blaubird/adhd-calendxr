@@ -224,3 +224,23 @@ export function formatTelegramUntimedMorningDigest(
 
   return `<b>${escapeTelegramHtml(messages.morningDigest)}</b>\n${escapeTelegramHtml(messages.dayToday)} · ${date}\n\n<b>${escapeTelegramHtml(messages.untimedMorningTitle)}</b>\n${titles}`;
 }
+
+export function formatTelegramDailyMorningDigest(items: Item[], language: TelegramLanguage, day: string) {
+  const messages = t(language);
+  const date = escapeTelegramHtml(formatTelegramDate(parseDayKey(day), language));
+  const timed = items.filter((item) => item.timeStart).sort(sortByTime);
+  const untimed = items.filter((item) => !item.timeStart);
+  const sections: string[] = [
+    `${escapeTelegramHtml(messages.dayToday)}\n${date} · ${escapeTelegramHtml(TIMEZONE)}`,
+  ];
+
+  if (timed.length) {
+    sections.push(`${escapeTelegramHtml(messages.timed)}\n\n${timed.map((item) => formatTelegramItemLine(item, language)).join('\n\n')}`);
+  }
+
+  if (untimed.length) {
+    sections.push(`${escapeTelegramHtml(messages.untimed)}\n\n${untimed.map((item) => formatTelegramItemLine(item, language)).join('\n\n')}`);
+  }
+
+  return sections.join('\n\n');
+}

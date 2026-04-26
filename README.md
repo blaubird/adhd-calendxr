@@ -153,28 +153,28 @@ curl -H "Authorization: Bearer <CRON_SECRET>" "https://calendar.luminiteq.eu/api
 
 The digest endpoint sends today's recurrence-expanded items to `TELEGRAM_CHAT_ID` and is protected by `CRON_SECRET`.
 
-### Telegram Reminders
+### Telegram Daily Digest
 
-Telegram reminders are disabled by default. Enable or disable them in `/settings`.
+Telegram daily digest is disabled by default. Enable or disable it in `/settings`.
 
 When enabled, `/api/telegram/reminders` sends:
 
-- one timed reminder 15 minutes before `timeStart`;
-- no timed reminders for untimed or done items;
-- recurrence-expanded reminders;
-- one untimed morning digest near 09:00 Europe/Paris when there are untimed, not-done items.
+- one morning digest with today's timed and untimed items;
+- recurrence-expanded occurrences for today;
+- no done or canceled items;
+- no empty digest when today has no active items.
 
-Duplicate sends are guarded by `telegram_reminder_deliveries`. Apply migration `0006_telegram_reminders` before enabling reminders in production.
+Duplicate sends are guarded by `telegram_reminder_deliveries` with `daily_morning_digest` delivery keys. Apply migration `0006_telegram_reminders` before enabling the digest in production. The earlier 15-minute reminder code is preserved but not run by the daily Hobby cron.
 
 ### Vercel Cron
 
 `vercel.json` schedules:
 
 ```txt
-*/5 * * * *
+0 5 * * *
 ```
 
-The scheduled path is `/api/telegram/reminders`. The endpoint checks the Europe/Paris app time internally and sends the untimed morning digest only once per day in the morning window. Every-5-minute cron requires a Vercel plan that supports that interval.
+The scheduled path is `/api/telegram/reminders`. Vercel Cron runs in UTC. The current schedule `0 5 * * *` sends the morning digest around 07:00 Europe/Paris during CEST. During CET it will be around 06:00 unless adjusted.
 
 Vercel Cron requests include `Authorization: Bearer $CRON_SECRET` when `CRON_SECRET` is configured in Vercel.
 

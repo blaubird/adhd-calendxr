@@ -57,7 +57,7 @@ type TelegramMessages = {
 export const TELEGRAM_MESSAGES: Record<TelegramLanguage, TelegramMessages> = {
   en: {
     start:
-      'CALENDXR bot is ready.\n\nYou can use:\n/today\n/tomorrow\n/week\n/language\n/settings\n\nSend a task or event and I will prepare a draft.\n\nReminders are off by default. You can enable them in /settings.',
+      'CALENDXR bot is ready.\n\nYou can use:\n/today\n/tomorrow\n/week\n/language\n/settings\n\nSend a task or event and I will prepare a draft.\n\nDaily digest is off by default. You can enable it in /settings.',
     help:
       '☾ Help\n\n◇ Commands\n/today - Show today\n/tomorrow - Show tomorrow\n/week - Show next 7 days\n/settings - Bot settings\n/language - Change language\n\n◇ Examples\n◦ create dentist tomorrow at 18:00\n◦ every Friday at 10:00 volunteering\n◦ tomorrow buy medicine and send the letter',
     thinking: 'Thinking...',
@@ -76,12 +76,12 @@ export const TELEGRAM_MESSAGES: Record<TelegramLanguage, TelegramMessages> = {
     languageChanged: 'Language changed to English.',
     settingsTitle: '⚙ Settings',
     settingsLanguage: (language) => `Language: ${language}`,
-    settingsReminders: (enabled) => `Reminders: ${enabled ? 'On' : 'Off'}`,
+    settingsReminders: (enabled) => `Daily digest: ${enabled ? 'On' : 'Off'}`,
     changeLanguage: 'Change language',
-    enableReminders: 'Enable reminders',
-    disableReminders: 'Disable reminders',
-    remindersEnabled: 'Reminders enabled.',
-    remindersDisabled: 'Reminders disabled.',
+    enableReminders: 'Enable daily digest',
+    disableReminders: 'Disable daily digest',
+    remindersEnabled: 'Daily digest enabled.',
+    remindersDisabled: 'Daily digest disabled.',
     dayToday: 'Today',
     dayTomorrow: 'Tomorrow',
     dayGeneric: 'Day',
@@ -104,7 +104,7 @@ export const TELEGRAM_MESSAGES: Record<TelegramLanguage, TelegramMessages> = {
   },
   fr: {
     start:
-      'Le bot CALENDXR est prêt.\n\nVous pouvez utiliser :\n/today\n/tomorrow\n/week\n/language\n/settings\n\nEnvoyez une tâche ou un événement et je préparerai un brouillon.\n\nLes rappels sont désactivés par défaut. Vous pouvez les activer dans /settings.',
+      'Le bot CALENDXR est prêt.\n\nVous pouvez utiliser :\n/today\n/tomorrow\n/week\n/language\n/settings\n\nEnvoyez une tâche ou un événement et je préparerai un brouillon.\n\nLe résumé quotidien est désactivé par défaut. Vous pouvez l’activer dans /settings.',
     help:
       '☾ Aide\n\n◇ Commandes\n/today - Voir aujourd’hui\n/tomorrow - Voir demain\n/week - Voir les 7 prochains jours\n/settings - Paramètres du bot\n/language - Changer la langue\n\n◇ Exemples\n◦ créer dentiste demain à 18:00\n◦ chaque vendredi à 10:00 bénévolat\n◦ demain acheter des médicaments et envoyer la lettre',
     thinking: 'Je réfléchis...',
@@ -123,12 +123,12 @@ export const TELEGRAM_MESSAGES: Record<TelegramLanguage, TelegramMessages> = {
     languageChanged: 'La langue a été changée en français.',
     settingsTitle: '⚙ Paramètres',
     settingsLanguage: (language) => `Langue : ${language}`,
-    settingsReminders: (enabled) => `Rappels : ${enabled ? 'Activés' : 'Désactivés'}`,
+    settingsReminders: (enabled) => `Résumé quotidien : ${enabled ? 'Activé' : 'Désactivé'}`,
     changeLanguage: 'Changer la langue',
-    enableReminders: 'Activer les rappels',
-    disableReminders: 'Désactiver les rappels',
-    remindersEnabled: 'Rappels activés.',
-    remindersDisabled: 'Rappels désactivés.',
+    enableReminders: 'Activer le résumé quotidien',
+    disableReminders: 'Désactiver le résumé quotidien',
+    remindersEnabled: 'Résumé quotidien activé.',
+    remindersDisabled: 'Résumé quotidien désactivé.',
     dayToday: 'Aujourd’hui',
     dayTomorrow: 'Demain',
     dayGeneric: 'Jour',
@@ -151,7 +151,7 @@ export const TELEGRAM_MESSAGES: Record<TelegramLanguage, TelegramMessages> = {
   },
   uk: {
     start:
-      'Бот CALENDXR готовий.\n\nМожна використовувати:\n/today\n/tomorrow\n/week\n/language\n/settings\n\nНадішліть задачу або подію, і я підготую чернетку.\n\nНагадування типово вимкнені. Їх можна ввімкнути в /settings.',
+      'Бот CALENDXR готовий.\n\nМожна використовувати:\n/today\n/tomorrow\n/week\n/language\n/settings\n\nНадішліть задачу або подію, і я підготую чернетку.\n\nЩоденний огляд типово вимкнений. Його можна ввімкнути в /settings.',
     help:
       '☾ Допомога\n\n◇ Команди\n/today - Показати сьогодні\n/tomorrow - Показати завтра\n/week - Показати наступні 7 днів\n/settings - Налаштування бота\n/language - Змінити мову\n\n◇ Приклади\n◦ створити стоматолога завтра о 18:00\n◦ щоп’ятниці о 10:00 волонтерство\n◦ завтра купити ліки й надіслати лист',
     thinking: 'Думаю...',
@@ -170,12 +170,12 @@ export const TELEGRAM_MESSAGES: Record<TelegramLanguage, TelegramMessages> = {
     languageChanged: 'Мову змінено на українську.',
     settingsTitle: '⚙ Налаштування',
     settingsLanguage: (language) => `Мова: ${language}`,
-    settingsReminders: (enabled) => `Нагадування: ${enabled ? 'Увімкнені' : 'Вимкнені'}`,
+    settingsReminders: (enabled) => `Щоденний огляд: ${enabled ? 'Увімкнений' : 'Вимкнений'}`,
     changeLanguage: 'Змінити мову',
-    enableReminders: 'Увімкнути нагадування',
-    disableReminders: 'Вимкнути нагадування',
-    remindersEnabled: 'Нагадування увімкнено.',
-    remindersDisabled: 'Нагадування вимкнено.',
+    enableReminders: 'Увімкнути щоденний огляд',
+    disableReminders: 'Вимкнути щоденний огляд',
+    remindersEnabled: 'Щоденний огляд увімкнено.',
+    remindersDisabled: 'Щоденний огляд вимкнено.',
     dayToday: 'Сьогодні',
     dayTomorrow: 'Завтра',
     dayGeneric: 'День',
@@ -198,7 +198,7 @@ export const TELEGRAM_MESSAGES: Record<TelegramLanguage, TelegramMessages> = {
   },
   ru: {
     start:
-      'Бот CALENDXR готов.\n\nМожно использовать:\n/today\n/tomorrow\n/week\n/language\n/settings\n\nОтправьте задачу или событие, и я подготовлю черновик.\n\nНапоминания по умолчанию выключены. Их можно включить в /settings.',
+      'Бот CALENDXR готов.\n\nМожно использовать:\n/today\n/tomorrow\n/week\n/language\n/settings\n\nОтправьте задачу или событие, и я подготовлю черновик.\n\nЕжедневная сводка по умолчанию выключена. Её можно включить в /settings.',
     help:
       '☾ Помощь\n\n◇ Команды\n/today - Показать сегодня\n/tomorrow - Показать завтра\n/week - Показать следующие 7 дней\n/settings - Настройки бота\n/language - Изменить язык\n\n◇ Примеры\n◦ создай завтра в 18:00 стоматолог\n◦ каждую пятницу в 10:00 волонтёрство\n◦ завтра купить таблетки и отправить письмо',
     thinking: 'Думаю...',
@@ -217,12 +217,12 @@ export const TELEGRAM_MESSAGES: Record<TelegramLanguage, TelegramMessages> = {
     languageChanged: 'Язык изменён на русский.',
     settingsTitle: '⚙ Настройки',
     settingsLanguage: (language) => `Язык: ${language}`,
-    settingsReminders: (enabled) => `Напоминания: ${enabled ? 'Включены' : 'Выключены'}`,
+    settingsReminders: (enabled) => `Ежедневная сводка: ${enabled ? 'Включена' : 'Выключена'}`,
     changeLanguage: 'Изменить язык',
-    enableReminders: 'Включить напоминания',
-    disableReminders: 'Выключить напоминания',
-    remindersEnabled: 'Напоминания включены.',
-    remindersDisabled: 'Напоминания выключены.',
+    enableReminders: 'Включить ежедневную сводку',
+    disableReminders: 'Выключить ежедневную сводку',
+    remindersEnabled: 'Ежедневная сводка включена.',
+    remindersDisabled: 'Ежедневная сводка выключена.',
     dayToday: 'Сегодня',
     dayTomorrow: 'Завтра',
     dayGeneric: 'День',

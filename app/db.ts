@@ -336,7 +336,7 @@ type ReminderDeliveryInput = {
   itemId?: string | null;
   occurrenceDay: string;
   occurrenceTime?: string | null;
-  reminderKind: 'timed_15m' | 'untimed_morning_digest';
+  reminderKind: 'timed_15m' | 'untimed_morning_digest' | 'daily_morning_digest';
   scheduledFor: Date;
 };
 

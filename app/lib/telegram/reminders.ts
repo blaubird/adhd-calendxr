@@ -10,9 +10,11 @@ import type { Item } from 'app/types';
 import { nowInTz, parseDayKey, TIMEZONE } from 'app/lib/datetime';
 import { loadExpandedItems } from 'app/lib/load-items';
 import { TelegramClient } from './client';
-import { formatTelegramTimedReminder, formatTelegramUntimedMorningDigest } from './format';
-
-const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
+import {
+  formatTelegramDailyMorningDigest,
+  formatTelegramTimedReminder,
+  formatTelegramUntimedMorningDigest,
+} from './format';
 
 function dateTimeFromDayAndTime(day: string, time: string) {
   const [hours, minutes] = time.split(':').map((value) => Number(value));
@@ -184,6 +186,52 @@ async function sendUntimedMorningDigestForChat(
   return { attempted: true, sent: 1, skippedDuplicate: 0, failed: 0, itemCount: items.length };
 }
 
+async function sendDailyMorningDigestForChat(
+  client: TelegramClient,
+  userId: number,
+  chatId: string,
+  language: Parameters<typeof formatTelegramDailyMorningDigest>[1],
+  now: Date
+) {
+  const today = wallDayKey(now);
+  const items = (await loadExpandedItems(userId, today, today))
+    .filter((item) => item.status !== 'done' && item.status !== 'canceled');
+
+  if (!items.length) {
+    return { sent: 0, skippedDuplicate: 0, failed: 0, itemCount: 0 };
+  }
+
+  const deliveryKey = ['daily_morning_digest', chatId, today].join(':');
+  const scheduledFor = dateTimeFromDayAndTime(today, '07:00');
+  const reservation = await reserveTelegramReminderDelivery({
+    deliveryKey,
+    chatId,
+    itemId: null,
+    occurrenceDay: today,
+    occurrenceTime: null,
+    reminderKind: 'daily_morning_digest',
+    scheduledFor,
+  });
+
+  if (!reservation) {
+    return { sent: 0, skippedDuplicate: 1, failed: 0, itemCount: items.length };
+  }
+
+  const ok = await sendIfTelegramOk(
+    client,
+    chatId,
+    formatTelegramDailyMorningDigest(items, language, today)
+  );
+
+  if (!ok) {
+    await releaseTelegramReminderDelivery(deliveryKey);
+    return { sent: 0, skippedDuplicate: 0, failed: 1, itemCount: items.length };
+  }
+
+  await markTelegramReminderDeliverySent(deliveryKey);
+  return { sent: 1, skippedDuplicate: 0, failed: 0, itemCount: items.length };
+}
+
 export async function sendTelegramReminders(client: TelegramClient, userId: number, allowedChatId?: string | null) {
   const now = nowInTz(new Date());
   const settings = (await listTelegramReminderSettings())
@@ -192,15 +240,15 @@ export async function sendTelegramReminders(client: TelegramClient, userId: numb
   const results = [];
 
   for (const setting of settings) {
-    const timed = await sendTimedRemindersForChat(client, userId, setting.chatId, setting.language, now);
-    const digest = await sendUntimedMorningDigestForChat(client, userId, setting.chatId, setting.language, now);
-    results.push({ chatId: setting.chatId, timed, digest });
+    const digest = await sendDailyMorningDigestForChat(client, userId, setting.chatId, setting.language, now);
+    results.push({ chatId: setting.chatId, digest });
   }
 
   return {
     ok: true,
     timezone: TIMEZONE,
-    reminderLeadMinutes: FIFTEEN_MINUTES_MS / 60000,
+    mode: 'daily_morning_digest',
+    timedRemindersPaused: true,
     enabledChatCount: settings.length,
     results,
   };
