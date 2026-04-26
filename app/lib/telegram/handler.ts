@@ -1,31 +1,60 @@
 import { TelegramClient } from './client';
 import { env } from 'app/env';
-import { generateDraftsFromText } from './ai';
+import { detectTelegramIntent, generateDraftsFromText } from './ai';
 import { loadExpandedItems } from 'app/lib/load-items';
-import { formatDayKey, nowInTz, TIMEZONE } from 'app/lib/datetime';
-import { addDays, startOfWeek, endOfWeek, format } from 'date-fns';
+import { formatDayKey, nowInTz } from 'app/lib/datetime';
+import { addDays, format } from 'date-fns';
 import {
   cancelTelegramPendingDraft,
   confirmTelegramPendingDraft,
   createTelegramPendingDraft,
 } from 'app/db';
-import { Item } from 'app/types';
+import {
+  formatTelegramDay,
+  formatTelegramDraftMessage,
+  formatTelegramRange,
+  formatTelegramSavedDraft,
+} from './format';
+import {
+  TELEGRAM_AI_COOLDOWN_MS,
+  formatTelegramUnsupportedMessage,
+  gateTelegramTextBeforeAi,
+  validateTelegramQueryRange,
+} from './intent';
 
-function formatItemsList(items: Item[], dateHeader: string) {
-  const untimed = items.filter(i => !i.timeStart);
-  const timed = items.filter(i => i.timeStart).sort((a, b) => a.timeStart!.localeCompare(b.timeStart!));
-  
-  let text = `*${dateHeader}*\n\n`;
-  if (untimed.length) {
-    text += `*No time:*\n` + untimed.map(i => `• ${i.status === 'done' ? '✓ ' : ''}${i.title}`).join('\n') + `\n\n`;
+const aiCooldownByChat = new Map<string, number>();
+
+async function sendDraftProposals(client: TelegramClient, chatId: string, text: string) {
+  await client.sendMessage(chatId, 'Thinking...');
+  const aiResult = await generateDraftsFromText(text);
+
+  if (aiResult.needClarification) {
+    await client.sendMessage(chatId, `Clarification needed:\n\n${aiResult.questions.join('\n')}`);
+    return;
   }
-  if (timed.length) {
-    text += `*Timed:*\n` + timed.map(i => `${i.timeStart} — ${i.status === 'done' ? '✓ ' : ''}${i.title}`).join('\n') + `\n\n`;
+
+  if (!aiResult.drafts || aiResult.drafts.length === 0) {
+    await client.sendMessage(chatId, 'No drafts could be interpreted.');
+    return;
   }
-  if (!untimed.length && !timed.length) {
-    text += 'No items.\n\n';
+
+  await client.sendMessage(chatId, `I prepared ${aiResult.drafts.length} draft(s).`);
+
+  for (const draft of aiResult.drafts) {
+    const pendingDraft = await createTelegramPendingDraft(chatId, draft);
+
+    await client.sendMessage(chatId, formatTelegramDraftMessage(draft), {
+      parse_mode: 'Markdown',
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: 'Confirm', callback_data: `confirm:${pendingDraft.id}` },
+            { text: 'Cancel', callback_data: `cancel:${pendingDraft.id}` }
+          ]
+        ]
+      }
+    });
   }
-  return text.trim();
 }
 
 export async function handleTelegramUpdate(update: any, client: TelegramClient, userId: number) {
@@ -68,7 +97,7 @@ export async function handleTelegramUpdate(update: any, client: TelegramClient, 
         const draft = result.draft;
         await client.answerCallbackQuery(queryId, 'Saved!');
         if (messageId) {
-          await client.editMessageText(chatId, messageId, `✅ Saved: ${draft.day} ${draft.timeStart ? draft.timeStart + ' ' : ''}${draft.title}`);
+          await client.editMessageText(chatId, messageId, formatTelegramSavedDraft(draft));
         }
       } catch (err: any) {
         console.error('[Telegram Handler] Confirm failed', { message: err?.message });
@@ -112,7 +141,7 @@ export async function handleTelegramUpdate(update: any, client: TelegramClient, 
       const dayStr = formatDayKey(now);
       const items = await loadExpandedItems(userId, dayStr, dayStr);
       const humanDay = format(now, 'dd.MM.yyyy');
-      await client.sendMessage(chatId, formatItemsList(items, `Today — ${humanDay}`), { parse_mode: 'Markdown' });
+      await client.sendMessage(chatId, formatTelegramDay(items, `Today — ${humanDay}`), { parse_mode: 'Markdown' });
       return;
     }
 
@@ -121,81 +150,61 @@ export async function handleTelegramUpdate(update: any, client: TelegramClient, 
       const dayStr = formatDayKey(tomorrow);
       const items = await loadExpandedItems(userId, dayStr, dayStr);
       const humanDay = format(tomorrow, 'dd.MM.yyyy');
-      await client.sendMessage(chatId, formatItemsList(items, `Tomorrow — ${humanDay}`), { parse_mode: 'Markdown' });
+      await client.sendMessage(chatId, formatTelegramDay(items, `Tomorrow — ${humanDay}`), { parse_mode: 'Markdown' });
       return;
     }
 
     if (text === '/week') {
       const now = nowInTz(new Date());
-      const weekStart = startOfWeek(now, { weekStartsOn: 1 });
-      const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
-      const items = await loadExpandedItems(userId, formatDayKey(weekStart), formatDayKey(weekEnd));
-      
-      let responseText = '*This week*\n\n';
-      
-      for (let i = 0; i < 7; i++) {
-        const d = addDays(weekStart, i);
-        const dStr = formatDayKey(d);
-        const humanD = format(d, 'EEE dd.MM');
-        
-        const dayItems = items.filter(it => it.occurrenceDay === dStr || it.day === dStr);
-        responseText += `*${humanD}*\n`;
-        if (dayItems.length === 0) {
-          responseText += `No items\n\n`;
-        } else {
-          for (const item of dayItems) {
-            if (!item.timeStart) responseText += `• ${item.status === 'done' ? '✓ ' : ''}${item.title}\n`;
-            else responseText += `${item.timeStart} — ${item.status === 'done' ? '✓ ' : ''}${item.title}\n`;
-          }
-          responseText += '\n';
-        }
-      }
-      
-      await client.sendMessage(chatId, responseText.trim(), { parse_mode: 'Markdown' });
+      const rangeStart = formatDayKey(now);
+      const rangeEnd = formatDayKey(addDays(now, 6));
+      const items = await loadExpandedItems(userId, rangeStart, rangeEnd);
+      await client.sendMessage(chatId, formatTelegramRange(items, rangeStart, rangeEnd, 'Next 7 days'), { parse_mode: 'Markdown' });
       return;
     }
 
-    // Natural Language -> AI Draft Generation
+    const gated = gateTelegramTextBeforeAi(text);
+    if (!gated.allowed) {
+      if (gated.message) await client.sendMessage(chatId, gated.message);
+      return;
+    }
+
+    const lastAiAt = aiCooldownByChat.get(chatId) || 0;
+    const nowMs = Date.now();
+    if (nowMs - lastAiAt < TELEGRAM_AI_COOLDOWN_MS) {
+      await client.sendMessage(chatId, 'Please give me a moment before the next AI-routed request.');
+      return;
+    }
+    aiCooldownByChat.set(chatId, nowMs);
+
+    // Natural Language -> AI Intent Router -> Calendar Query or Draft Generation
     try {
-      await client.sendMessage(chatId, 'Thinking...');
-      const aiResult = await generateDraftsFromText(text);
-      
-      if (aiResult.needClarification) {
-        await client.sendMessage(chatId, `Clarification needed:\n\n${aiResult.questions.join('\n')}`);
-        return;
-      }
+      const intent = await detectTelegramIntent(gated.text);
 
-      if (!aiResult.drafts || aiResult.drafts.length === 0) {
-        await client.sendMessage(chatId, 'No drafts could be interpreted.');
-        return;
-      }
+      if (intent.intent === 'calendar_query') {
+        const range = validateTelegramQueryRange(intent.query);
+        if (!range) {
+          await client.sendMessage(chatId, formatTelegramUnsupportedMessage());
+          return;
+        }
 
-      await client.sendMessage(chatId, `I prepared ${aiResult.drafts.length} draft(s).`);
-
-      for (const draft of aiResult.drafts) {
-        const pendingDraft = await createTelegramPendingDraft(chatId, draft);
-        
-        let draftMsg = `*${draft.day}* — ${draft.title}`;
-        if (draft.timeStart) draftMsg += `\n${draft.timeStart}`;
-        else draftMsg += `\nNo time`;
-        
-        if (draft.recurrenceRule) draftMsg += `\nRepeats: ${draft.recurrenceRule}`;
-
-        await client.sendMessage(chatId, draftMsg, {
+        const items = await loadExpandedItems(userId, range.startDay, range.endDay);
+        const label = range.rangeDays === 1 ? range.label : range.label || `Next ${range.rangeDays} days`;
+        await client.sendMessage(chatId, formatTelegramRange(items, range.startDay, range.endDay, label), {
           parse_mode: 'Markdown',
-          reply_markup: {
-            inline_keyboard: [
-              [
-                { text: 'Confirm', callback_data: `confirm:${pendingDraft.id}` },
-                { text: 'Cancel', callback_data: `cancel:${pendingDraft.id}` }
-              ]
-            ]
-          }
         });
+        return;
       }
+
+      if (intent.intent === 'draft_create') {
+        await sendDraftProposals(client, chatId, intent.draftInput);
+        return;
+      }
+
+      await client.sendMessage(chatId, formatTelegramUnsupportedMessage());
     } catch (err: any) {
       console.error('[Telegram Handler] AI error', err);
-      await client.sendMessage(chatId, `Failed to generate draft: ${err.message}`);
+      await client.sendMessage(chatId, `Failed to handle Telegram request: ${err.message}`);
     }
   }
 }
