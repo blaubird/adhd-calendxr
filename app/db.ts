@@ -9,6 +9,7 @@ import {
   InsertItem,
   SelectItem,
   items,
+  telegramItemContexts,
   telegramPendingDrafts,
   telegramReminderDeliveries,
   telegramUserSettings,
@@ -31,7 +32,16 @@ const sslMode = runtimeUrl.includes('localhost') || runtimeUrl.includes('sslmode
 
 const client = postgres(sslMode);
 export const db = drizzle(client, {
-  schema: { users, items, telegramPendingDrafts, telegramUserSettings, telegramReminderDeliveries, canvasBoards, canvasElements },
+  schema: {
+    users,
+    items,
+    telegramPendingDrafts,
+    telegramUserSettings,
+    telegramReminderDeliveries,
+    telegramItemContexts,
+    canvasBoards,
+    canvasElements,
+  },
 });
 
 export async function getUser(email: string) {
@@ -372,6 +382,54 @@ export async function releaseTelegramReminderDelivery(deliveryKey: string) {
   await db
     .delete(telegramReminderDeliveries)
     .where(and(eq(telegramReminderDeliveries.deliveryKey, deliveryKey), isNull(telegramReminderDeliveries.sentAt)));
+}
+
+const TELEGRAM_ITEM_CONTEXT_TTL_MS = 24 * 60 * 60 * 1000;
+
+export async function saveTelegramItemContext(chatId: string, contextType: string, snapshot: unknown) {
+  const contextId = randomUUID();
+  const expiresAt = new Date(Date.now() + TELEGRAM_ITEM_CONTEXT_TTL_MS);
+
+  const [context] = await db
+    .insert(telegramItemContexts)
+    .values({
+      chatId,
+      contextId,
+      contextType,
+      items: snapshot,
+      expiresAt,
+    })
+    .onConflictDoUpdate({
+      target: telegramItemContexts.chatId,
+      set: {
+        contextId,
+        contextType,
+        items: snapshot,
+        updatedAt: new Date(),
+        expiresAt,
+      },
+    })
+    .returning();
+
+  return context;
+}
+
+export async function getTelegramItemContext(chatId: string, contextId?: string | null) {
+  const conditions = [
+    eq(telegramItemContexts.chatId, chatId),
+    gte(telegramItemContexts.expiresAt, new Date()),
+  ];
+  if (contextId) {
+    conditions.push(eq(telegramItemContexts.contextId, contextId));
+  }
+
+  const [context] = await db
+    .select()
+    .from(telegramItemContexts)
+    .where(and(...conditions))
+    .limit(1);
+
+  return context ?? null;
 }
 
 export type ItemRecord = SelectItem;

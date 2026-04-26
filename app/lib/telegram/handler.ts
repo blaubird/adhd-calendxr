@@ -22,6 +22,17 @@ import {
   formatTelegramSettings,
   formatTelegramSettingsKeyboard,
 } from './format';
+import {
+  buildAndSaveTelegramListContext,
+  deleteTelegramRef,
+  formatTelegramNumberedDay,
+  formatTelegramNumberedRange,
+  formatTelegramRefPreview,
+  markTelegramRefDone,
+  moveTelegramRef,
+  parseTelegramMoveArgs,
+  resolveTelegramItemRef,
+} from './manage';
 import { isTelegramLanguage, t, type TelegramLanguage } from './i18n';
 import {
   TELEGRAM_AI_COOLDOWN_MS,
@@ -73,6 +84,16 @@ function normalizeTelegramCommand(text: string) {
   const firstToken = text.trim().split(/\s+/)[0] || '';
   const match = firstToken.match(/^\/([a-z0-9_]+)(?:@[\w_]+)?$/i);
   return match?.[1]?.toLowerCase() || null;
+}
+
+function commandArgs(text: string) {
+  return text.trim().split(/\s+/).slice(1);
+}
+
+function parseItemNumber(value: string | undefined) {
+  if (!value || !/^\d+$/.test(value)) return null;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
 async function sendLanguagePicker(client: TelegramClient, chatId: string, language: TelegramLanguage, metrics: TelegramRouteMetrics) {
@@ -171,6 +192,41 @@ export async function handleTelegramUpdate(update: any, client: TelegramClient, 
     const data = String(update.callback_query.data || '');
     const queryId = update.callback_query.id;
     const messageId = update.callback_query.message?.message_id;
+
+    if (data.startsWith('item_delete_confirm:')) {
+      const [, contextId, rawNumber] = data.split(':');
+      const itemNumber = parseItemNumber(rawNumber);
+      const resolved = itemNumber ? await resolveTelegramItemRef(chatId, itemNumber, contextId) : null;
+      if (!resolved) {
+        await timeTelegram(metrics, () => client.answerCallbackQuery(queryId, messages.couldNotFindItem, true));
+        logTelegramTiming('callback_item_delete', startedAt, metrics);
+        return;
+      }
+
+      const dbStartedAt = Date.now();
+      await deleteTelegramRef(userId, resolved.ref);
+      metrics.dbQueryDurationMs = durationSince(dbStartedAt);
+      await timeTelegram(metrics, () => client.answerCallbackQuery(queryId, messages.deletedTitle));
+      if (messageId) {
+        await timeTelegram(metrics, () => client.editMessageText(
+          chatId,
+          messageId,
+          `${messages.deletedTitle}\n\n${formatTelegramRefPreview(resolved.ref)}`,
+          { parse_mode: 'HTML' }
+        ));
+      }
+      logTelegramTiming('callback_item_delete', startedAt, metrics);
+      return;
+    }
+
+    if (data === 'item_delete_cancel') {
+      await timeTelegram(metrics, () => client.answerCallbackQuery(queryId, messages.canceled));
+      if (messageId) {
+        await timeTelegram(metrics, () => client.editMessageText(chatId, messageId, messages.canceled));
+      }
+      logTelegramTiming('callback_item_delete', startedAt, metrics);
+      return;
+    }
 
     if (data.startsWith('language:')) {
       const selectedLanguage = data.split(':')[1];
@@ -317,17 +373,14 @@ export async function handleTelegramUpdate(update: any, client: TelegramClient, 
       return;
     }
 
-    if (command === 'today') {
+    if (command === 'today' || command === 'list') {
       const now = nowInTz(new Date());
       const dayStr = formatDayKey(now);
       const dbStartedAt = Date.now();
       const items = await loadExpandedItems(userId, dayStr, dayStr);
       metrics.dbQueryDurationMs = durationSince(dbStartedAt);
-      await timeTelegram(metrics, () => client.sendMessage(chatId, formatTelegramDay(items, {
-        date: now,
-        label: messages.dayToday,
-        offsetDays: 0,
-      }, language), { parse_mode: 'HTML' }));
+      const context = await buildAndSaveTelegramListContext(chatId, 'today', items);
+      await timeTelegram(metrics, () => client.sendMessage(chatId, formatTelegramNumberedDay(messages.dayToday, dayStr, context, language), { parse_mode: 'HTML' }));
       logTelegramTiming('command', startedAt, metrics);
       return;
     }
@@ -338,11 +391,8 @@ export async function handleTelegramUpdate(update: any, client: TelegramClient, 
       const dbStartedAt = Date.now();
       const items = await loadExpandedItems(userId, dayStr, dayStr);
       metrics.dbQueryDurationMs = durationSince(dbStartedAt);
-      await timeTelegram(metrics, () => client.sendMessage(chatId, formatTelegramDay(items, {
-        date: tomorrow,
-        label: messages.dayTomorrow,
-        offsetDays: 1,
-      }, language), { parse_mode: 'HTML' }));
+      const context = await buildAndSaveTelegramListContext(chatId, 'tomorrow', items);
+      await timeTelegram(metrics, () => client.sendMessage(chatId, formatTelegramNumberedDay(messages.dayTomorrow, dayStr, context, language), { parse_mode: 'HTML' }));
       logTelegramTiming('command', startedAt, metrics);
       return;
     }
@@ -354,7 +404,84 @@ export async function handleTelegramUpdate(update: any, client: TelegramClient, 
       const dbStartedAt = Date.now();
       const items = await loadExpandedItems(userId, rangeStart, rangeEnd);
       metrics.dbQueryDurationMs = durationSince(dbStartedAt);
-      await timeTelegram(metrics, () => client.sendMessage(chatId, formatTelegramRange(items, rangeStart, rangeEnd, messages.next7Days, language), { parse_mode: 'HTML' }));
+      const context = await buildAndSaveTelegramListContext(chatId, 'week', items);
+      await timeTelegram(metrics, () => client.sendMessage(chatId, formatTelegramNumberedRange(messages.next7Days, rangeStart, rangeEnd, context, language), { parse_mode: 'HTML' }));
+      logTelegramTiming('command', startedAt, metrics);
+      return;
+    }
+
+    if (command === 'done') {
+      const itemNumber = parseItemNumber(commandArgs(text)[0]);
+      const resolved = itemNumber ? await resolveTelegramItemRef(chatId, itemNumber) : null;
+      if (!resolved) {
+        await timeTelegram(metrics, () => client.sendMessage(chatId, messages.couldNotFindItem));
+        logTelegramTiming('command', startedAt, metrics);
+        return;
+      }
+      const dbStartedAt = Date.now();
+      const result = await markTelegramRefDone(userId, resolved.ref);
+      metrics.dbQueryDurationMs = durationSince(dbStartedAt);
+      if (!result) {
+        await timeTelegram(metrics, () => client.sendMessage(chatId, messages.couldNotFindItem));
+        logTelegramTiming('command', startedAt, metrics);
+        return;
+      }
+      const title = result.status === 'already_done' ? messages.alreadyDone : messages.doneTitle;
+      await timeTelegram(metrics, () => client.sendMessage(chatId, `${title}\n\n${formatTelegramRefPreview(resolved.ref)}`, { parse_mode: 'HTML' }));
+      logTelegramTiming('command', startedAt, metrics);
+      return;
+    }
+
+    if (command === 'delete') {
+      const itemNumber = parseItemNumber(commandArgs(text)[0]);
+      const resolved = itemNumber ? await resolveTelegramItemRef(chatId, itemNumber) : null;
+      if (!resolved) {
+        await timeTelegram(metrics, () => client.sendMessage(chatId, messages.couldNotFindItem));
+        logTelegramTiming('command', startedAt, metrics);
+        return;
+      }
+      await timeTelegram(metrics, () => client.sendMessage(chatId, `${messages.deletePrompt}\n\n${formatTelegramRefPreview(resolved.ref)}`, {
+        parse_mode: 'HTML',
+        reply_markup: {
+          inline_keyboard: [[
+            { text: messages.confirmDelete, callback_data: `item_delete_confirm:${resolved.contextId}:${itemNumber}` },
+            { text: messages.canceled, callback_data: 'item_delete_cancel' },
+          ]],
+        },
+      }));
+      logTelegramTiming('command', startedAt, metrics);
+      return;
+    }
+
+    if (command === 'move') {
+      const args = commandArgs(text);
+      const itemNumber = parseItemNumber(args[0]);
+      const parsedMove = parseTelegramMoveArgs(args.slice(1));
+      const resolved = itemNumber ? await resolveTelegramItemRef(chatId, itemNumber) : null;
+      if (!resolved) {
+        await timeTelegram(metrics, () => client.sendMessage(chatId, messages.couldNotFindItem));
+        logTelegramTiming('command', startedAt, metrics);
+        return;
+      }
+      if (!parsedMove) {
+        await timeTelegram(metrics, () => client.sendMessage(chatId, `${messages.couldNotUnderstandDateTime}\n${messages.moveUsage}`));
+        logTelegramTiming('command', startedAt, metrics);
+        return;
+      }
+      const dbStartedAt = Date.now();
+      const result = await moveTelegramRef(userId, resolved.ref, parsedMove.day, parsedMove.timeStart);
+      metrics.dbQueryDurationMs = durationSince(dbStartedAt);
+      if (!result) {
+        await timeTelegram(metrics, () => client.sendMessage(chatId, messages.couldNotFindItem));
+        logTelegramTiming('command', startedAt, metrics);
+        return;
+      }
+      if (result.status === 'unsupported_recurring') {
+        await timeTelegram(metrics, () => client.sendMessage(chatId, messages.recurringMoveUnsupported));
+        logTelegramTiming('command', startedAt, metrics);
+        return;
+      }
+      await timeTelegram(metrics, () => client.sendMessage(chatId, `${messages.movedTitle}\n\n${formatTelegramRefPreview(result.ref)}`, { parse_mode: 'HTML' }));
       logTelegramTiming('command', startedAt, metrics);
       return;
     }

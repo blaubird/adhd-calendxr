@@ -260,6 +260,14 @@ export default function CalendarShell({
         }}
         onDelete={(item) => cal.removeItem(item)}
         onDeleteSeries={(item) => cal.removeSeriesItem(item)}
+        onMove={async (item, values) => {
+          await cal.saveItem({
+            ...toFormState(item),
+            day: values.day,
+            timeStart: values.timeStart,
+            timeEnd: values.timeEnd,
+          });
+        }}
         onToggleDone={(item) =>
           cal.markStatus(item, item.status === 'done' ? 'todo' : 'done')
         }

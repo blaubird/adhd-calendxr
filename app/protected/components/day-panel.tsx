@@ -77,12 +77,14 @@ function DeleteScopePicker({
 function ItemCard({
   item,
   onEdit,
+  onMove,
   onDelete,
   onDeleteSeries,
   onToggleDone,
 }: {
   item: Item;
   onEdit: () => void;
+  onMove: () => void;
   onDelete: () => void;
   onDeleteSeries: () => void;
   onToggleDone: () => void;
@@ -159,6 +161,14 @@ function ItemCard({
               ✎
             </button>
             <button
+              className="day-panel-action-btn"
+              onClick={(e) => { e.stopPropagation(); onMove(); }}
+              title="Move"
+              type="button"
+            >
+              ↷
+            </button>
+            <button
               className="day-panel-action-btn day-panel-action-btn--delete"
               onClick={(e) => { e.stopPropagation(); handleDeleteClick(); }}
               title="Delete"
@@ -198,6 +208,107 @@ function ItemCard({
   );
 }
 
+function MoveItemDialog({
+  item,
+  onMove,
+  onClose,
+}: {
+  item: Item;
+  onMove: (item: Item, values: { day: string; timeStart: string | null; timeEnd: string | null }) => Promise<void>;
+  onClose: () => void;
+}) {
+  const isRecurring = Boolean(item.isOccurrence || item.recurrenceRule);
+  const [day, setDay] = useState(item.occurrenceDay ?? item.day);
+  const [timeStart, setTimeStart] = useState(item.timeStart ?? '');
+  const [timeEnd, setTimeEnd] = useState(item.timeEnd ?? '');
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    if (isRecurring) return;
+    setSubmitting(true);
+    await onMove(item, {
+      day,
+      timeStart: timeStart || null,
+      timeEnd: timeEnd || null,
+    });
+    setSubmitting(false);
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-slate-950/70 flex items-center justify-center p-4 z-30 animate-modal-overlay">
+      <div className="bg-slate-900 rounded-2xl shadow-soft w-full max-w-sm p-5 space-y-4 border border-slate-700 animate-modal-content">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Move</p>
+            <h2 className="text-lg font-semibold text-white">{item.title}</h2>
+          </div>
+          <button className="text-slate-400 text-sm hover:text-slate-200" onClick={onClose} type="button">
+            Close
+          </button>
+        </div>
+
+        {isRecurring ? (
+          <p className="text-sm text-slate-300">
+            Recurring occurrences cannot be moved safely yet.
+          </p>
+        ) : (
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <label className="flex flex-col gap-1 col-span-2">
+              <span className="text-slate-300">Date</span>
+              <input
+                className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100"
+                type="date"
+                value={day}
+                onChange={(event) => setDay(event.target.value)}
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-slate-300">Start</span>
+              <input
+                className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100"
+                type="time"
+                value={timeStart}
+                onChange={(event) => setTimeStart(event.target.value)}
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-slate-300">End</span>
+              <input
+                className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100"
+                type="time"
+                value={timeEnd}
+                onChange={(event) => setTimeEnd(event.target.value)}
+              />
+            </label>
+          </div>
+        )}
+
+        <div className="flex justify-end gap-2">
+          <button
+            className="px-4 py-2 text-sm rounded-lg border border-slate-700 text-slate-100 hover:bg-slate-800"
+            onClick={onClose}
+            disabled={submitting}
+            type="button"
+          >
+            Cancel
+          </button>
+          {!isRecurring && (
+            <button
+              className="px-4 py-2 text-sm rounded-lg bg-sky-600 text-white hover:bg-sky-500 disabled:opacity-60"
+              onClick={handleSubmit}
+              disabled={submitting || !day}
+              type="button"
+            >
+              {submitting ? 'Moving…' : 'Move'}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SortableItemCard(props: any) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: String(props.item.id),
@@ -223,6 +334,7 @@ export function DayPanel({
   items,
   loading,
   onEdit,
+  onMove,
   onDelete,
   onDeleteSeries,
   onToggleDone,
@@ -235,6 +347,7 @@ export function DayPanel({
   items: Item[];
   loading: boolean;
   onEdit: (item: Item) => void;
+  onMove: (item: Item, values: { day: string; timeStart: string | null; timeEnd: string | null }) => Promise<void>;
   onDelete: (item: Item) => void;
   onDeleteSeries: (item: Item) => void;
   onToggleDone: (item: Item) => void;
@@ -244,6 +357,7 @@ export function DayPanel({
   chatSection: React.ReactNode;
 }) {
   const [aiOpen, setAiOpen] = useState(false);
+  const [movingItem, setMovingItem] = useState<Item | null>(null);
   
   const untimedItems = React.useMemo(() => items.filter((i) => !i.timeStart), [items]);
   const timedItems = React.useMemo(() => items.filter((i) => !!i.timeStart), [items]);
@@ -327,6 +441,7 @@ export function DayPanel({
                 key={String(item.id)}
                 item={item}
                 onEdit={() => onEdit(item)}
+                onMove={() => setMovingItem(item)}
                 onDelete={() => onDelete(item)}
                 onDeleteSeries={() => onDeleteSeries(item)}
                 onToggleDone={() => onToggleDone(item)}
@@ -344,6 +459,7 @@ export function DayPanel({
             key={String(item.id)}
             item={item}
             onEdit={() => onEdit(item)}
+            onMove={() => setMovingItem(item)}
             onDelete={() => onDelete(item)}
             onDeleteSeries={() => onDeleteSeries(item)}
             onToggleDone={() => onToggleDone(item)}
@@ -367,6 +483,14 @@ export function DayPanel({
         <div className="day-panel-ai-section bg-slate-900/30 border-t border-slate-800 animate-slide-up overflow-y-auto shrink-0" style={{ maxHeight: '34vh' }}>
           {chatSection}
         </div>
+      )}
+
+      {movingItem && (
+        <MoveItemDialog
+          item={movingItem}
+          onMove={onMove}
+          onClose={() => setMovingItem(null)}
+        />
       )}
     </div>
   );

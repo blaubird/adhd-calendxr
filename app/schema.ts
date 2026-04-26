@@ -127,6 +127,27 @@ export const telegramReminderDeliveries = pgTable(
   })
 );
 
+export const telegramItemContexts = pgTable(
+  'telegram_item_contexts',
+  {
+    chatId: varchar('chat_id', { length: 64 }).primaryKey(),
+    contextId: varchar('context_id', { length: 64 }).notNull(),
+    contextType: varchar('context_type', { length: 20 }).notNull(),
+    items: jsonb('items').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  },
+  (table) => ({
+    contextIdIdx: index('telegram_item_contexts_context_id_idx').on(table.contextId),
+    expiresAtIdx: index('telegram_item_contexts_expires_at_idx').on(table.expiresAt),
+  })
+);
+
 // ─── Canvas tables ──────────────────────────────────────────
 
 export const boardScope = pgEnum('board_scope', ['day', 'month']);
@@ -191,6 +212,7 @@ export type SelectUser = typeof users.$inferSelect;
 export type SelectTelegramPendingDraft = typeof telegramPendingDrafts.$inferSelect;
 export type SelectTelegramUserSettings = typeof telegramUserSettings.$inferSelect;
 export type SelectTelegramReminderDelivery = typeof telegramReminderDeliveries.$inferSelect;
+export type SelectTelegramItemContext = typeof telegramItemContexts.$inferSelect;
 export type InsertCanvasBoard = typeof canvasBoards.$inferInsert;
 export type SelectCanvasBoard = typeof canvasBoards.$inferSelect;
 export type InsertCanvasElement = typeof canvasElements.$inferInsert;

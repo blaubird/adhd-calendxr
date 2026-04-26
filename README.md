@@ -84,7 +84,7 @@ Telegram Phase 1 has two transports that reuse the same shared handler:
 - Local polling: `scripts/telegram-dev.ts`
 - Production webhook: `POST /api/telegram/webhook`
 
-Both paths enforce `TELEGRAM_ALLOWED_CHAT_ID`, support `/start`, `/help`, `/today`, `/tomorrow`, `/week`, `/settings`, `/language`, natural-language draft creation, and Confirm / Cancel callbacks.
+Both paths enforce `TELEGRAM_ALLOWED_CHAT_ID`, support `/start`, `/help`, `/today`, `/tomorrow`, `/week`, `/list`, `/done`, `/delete`, `/move`, `/settings`, `/language`, natural-language draft creation, and Confirm / Cancel callbacks.
 
 ### Local development
 
@@ -195,3 +195,7 @@ Confirm / Cancel callbacks use the `telegram_pending_drafts` Postgres table, not
 ### Telegram User Settings
 
 Bot interface language and reminder opt-in state are stored in `telegram_user_settings`, keyed by Telegram chat id. Apply migrations `0005_telegram_user_settings` and `0006_telegram_reminders` before using `/language`, `/settings`, reminders, digest localization, or localized command responses in production.
+
+### Telegram Item Contexts
+
+Numbered Telegram management commands use `telegram_item_contexts` to store the latest per-chat list snapshot for 24 hours. Apply migration `0007_telegram_item_contexts` before using `/done`, `/delete`, or `/move` in production.

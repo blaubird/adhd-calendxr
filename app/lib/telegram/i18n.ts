@@ -51,6 +51,16 @@ type TelegramMessages = {
   reminderTitle: string;
   reminderIn15Minutes: string;
   untimedMorningTitle: string;
+  doneTitle: string;
+  deletedTitle: string;
+  movedTitle: string;
+  deletePrompt: string;
+  confirmDelete: string;
+  couldNotFindItem: string;
+  couldNotUnderstandDateTime: string;
+  moveUsage: string;
+  recurringMoveUnsupported: string;
+  alreadyDone: string;
   unsupported: string;
 };
 
@@ -59,7 +69,7 @@ export const TELEGRAM_MESSAGES: Record<TelegramLanguage, TelegramMessages> = {
     start:
       'CALENDXR bot is ready.\n\nYou can use:\n/today\n/tomorrow\n/week\n/language\n/settings\n\nSend a task or event and I will prepare a draft.\n\nDaily digest is off by default. You can enable it in /settings.',
     help:
-      '☾ Help\n\n◇ Commands\n/today - Show today\n/tomorrow - Show tomorrow\n/week - Show next 7 days\n/settings - Bot settings\n/language - Change language\n\n◇ Examples\n◦ create dentist tomorrow at 18:00\n◦ every Friday at 10:00 volunteering\n◦ tomorrow buy medicine and send the letter',
+      'Help\n\n/today - Show today\n/week - Show next 7 days\n/done 2 - Mark listed item done\n/delete 2 - Delete listed item\n/move 2 tomorrow 14:00 - Move listed item\n/settings - Bot settings\n/language - Change language\n\nExamples\ncreate dentist tomorrow at 18:00\nevery Friday at 10:00 volunteering\ntomorrow buy medicine and send the letter',
     thinking: 'Thinking...',
     clarificationNeeded: 'Clarification needed:',
     noDrafts: 'No drafts could be interpreted.',
@@ -99,6 +109,16 @@ export const TELEGRAM_MESSAGES: Record<TelegramLanguage, TelegramMessages> = {
     reminderTitle: 'Reminder',
     reminderIn15Minutes: 'In 15 minutes',
     untimedMorningTitle: 'Untimed',
+    doneTitle: 'Done',
+    deletedTitle: 'Deleted',
+    movedTitle: 'Moved',
+    deletePrompt: 'Delete this item?',
+    confirmDelete: 'Confirm delete',
+    couldNotFindItem: 'Could not find that item. Run /today first.',
+    couldNotUnderstandDateTime: 'I could not understand the date/time.',
+    moveUsage: 'Use: /move 2 tomorrow 14:00',
+    recurringMoveUnsupported: 'This recurring occurrence cannot be moved yet.',
+    alreadyDone: 'That item is already done.',
     unsupported:
       'I only handle calendar queries and draft creation here.\n\nTry:\n◦ what do I have tomorrow\n◦ show me the next 5 days\n◦ tomorrow buy medicine\n◦ every Monday at 10:00 volunteering',
   },
@@ -106,7 +126,7 @@ export const TELEGRAM_MESSAGES: Record<TelegramLanguage, TelegramMessages> = {
     start:
       'Le bot CALENDXR est prêt.\n\nVous pouvez utiliser :\n/today\n/tomorrow\n/week\n/language\n/settings\n\nEnvoyez une tâche ou un événement et je préparerai un brouillon.\n\nLe résumé quotidien est désactivé par défaut. Vous pouvez l’activer dans /settings.',
     help:
-      '☾ Aide\n\n◇ Commandes\n/today - Voir aujourd’hui\n/tomorrow - Voir demain\n/week - Voir les 7 prochains jours\n/settings - Paramètres du bot\n/language - Changer la langue\n\n◇ Exemples\n◦ créer dentiste demain à 18:00\n◦ chaque vendredi à 10:00 bénévolat\n◦ demain acheter des médicaments et envoyer la lettre',
+      'Aide\n\n/today - Voir aujourd’hui\n/week - Voir les 7 prochains jours\n/done 2 - Marquer un élément comme terminé\n/delete 2 - Supprimer un élément listé\n/move 2 tomorrow 14:00 - Déplacer un élément listé\n/settings - Paramètres du bot\n/language - Changer la langue\n\nExemples\ncréer dentiste demain à 18:00\nchaque vendredi à 10:00 bénévolat\ndemain acheter des médicaments et envoyer la lettre',
     thinking: 'Je réfléchis...',
     clarificationNeeded: 'Précision nécessaire :',
     noDrafts: 'Aucun brouillon n’a pu être interprété.',
@@ -146,6 +166,16 @@ export const TELEGRAM_MESSAGES: Record<TelegramLanguage, TelegramMessages> = {
     reminderTitle: 'Rappel',
     reminderIn15Minutes: 'Dans 15 minutes',
     untimedMorningTitle: 'Sans heure',
+    doneTitle: 'Terminé',
+    deletedTitle: 'Supprimé',
+    movedTitle: 'Déplacé',
+    deletePrompt: 'Supprimer cet élément ?',
+    confirmDelete: 'Confirmer la suppression',
+    couldNotFindItem: 'Élément introuvable. Lancez /today d’abord.',
+    couldNotUnderstandDateTime: 'Je n’ai pas compris la date ou l’heure.',
+    moveUsage: 'Utilisez : /move 2 tomorrow 14:00',
+    recurringMoveUnsupported: 'Cette occurrence récurrente ne peut pas encore être déplacée.',
+    alreadyDone: 'Cet élément est déjà terminé.',
     unsupported:
       'Je gère seulement les requêtes de calendrier et la création de brouillons ici.\n\nEssayez :\n◦ qu’est-ce que j’ai demain\n◦ montre les 5 prochains jours\n◦ demain acheter des médicaments\n◦ chaque lundi à 10:00 bénévolat',
   },
@@ -153,7 +183,7 @@ export const TELEGRAM_MESSAGES: Record<TelegramLanguage, TelegramMessages> = {
     start:
       'Бот CALENDXR готовий.\n\nМожна використовувати:\n/today\n/tomorrow\n/week\n/language\n/settings\n\nНадішліть задачу або подію, і я підготую чернетку.\n\nЩоденний огляд типово вимкнений. Його можна ввімкнути в /settings.',
     help:
-      '☾ Допомога\n\n◇ Команди\n/today - Показати сьогодні\n/tomorrow - Показати завтра\n/week - Показати наступні 7 днів\n/settings - Налаштування бота\n/language - Змінити мову\n\n◇ Приклади\n◦ створити стоматолога завтра о 18:00\n◦ щоп’ятниці о 10:00 волонтерство\n◦ завтра купити ліки й надіслати лист',
+      'Допомога\n\n/today - Показати сьогодні\n/week - Показати наступні 7 днів\n/done 2 - Позначити елемент виконаним\n/delete 2 - Видалити елемент зі списку\n/move 2 tomorrow 14:00 - Перенести елемент зі списку\n/settings - Налаштування бота\n/language - Змінити мову\n\nПриклади\nстворити стоматолога завтра о 18:00\nщоп’ятниці о 10:00 волонтерство\nзавтра купити ліки й надіслати лист',
     thinking: 'Думаю...',
     clarificationNeeded: 'Потрібне уточнення:',
     noDrafts: 'Не вдалося розпізнати жодної чернетки.',
@@ -193,6 +223,16 @@ export const TELEGRAM_MESSAGES: Record<TelegramLanguage, TelegramMessages> = {
     reminderTitle: 'Нагадування',
     reminderIn15Minutes: 'Через 15 хвилин',
     untimedMorningTitle: 'Без часу',
+    doneTitle: 'Готово',
+    deletedTitle: 'Видалено',
+    movedTitle: 'Перенесено',
+    deletePrompt: 'Видалити цей елемент?',
+    confirmDelete: 'Підтвердити видалення',
+    couldNotFindItem: 'Не вдалося знайти цей елемент. Спочатку запустіть /today.',
+    couldNotUnderstandDateTime: 'Не вдалося зрозуміти дату або час.',
+    moveUsage: 'Використайте: /move 2 tomorrow 14:00',
+    recurringMoveUnsupported: 'Цю повторювану подію поки не можна перенести.',
+    alreadyDone: 'Цей елемент уже виконано.',
     unsupported:
       'Тут я обробляю лише запити календаря та створення чернеток.\n\nСпробуйте:\n◦ що у мене завтра\n◦ покажи найближчі 5 днів\n◦ завтра купити ліки\n◦ щопонеділка о 10:00 волонтерство',
   },
@@ -200,7 +240,7 @@ export const TELEGRAM_MESSAGES: Record<TelegramLanguage, TelegramMessages> = {
     start:
       'Бот CALENDXR готов.\n\nМожно использовать:\n/today\n/tomorrow\n/week\n/language\n/settings\n\nОтправьте задачу или событие, и я подготовлю черновик.\n\nЕжедневная сводка по умолчанию выключена. Её можно включить в /settings.',
     help:
-      '☾ Помощь\n\n◇ Команды\n/today - Показать сегодня\n/tomorrow - Показать завтра\n/week - Показать следующие 7 дней\n/settings - Настройки бота\n/language - Изменить язык\n\n◇ Примеры\n◦ создай завтра в 18:00 стоматолог\n◦ каждую пятницу в 10:00 волонтёрство\n◦ завтра купить таблетки и отправить письмо',
+      'Помощь\n\n/today - Показать сегодня\n/week - Показать следующие 7 дней\n/done 2 - Отметить элемент выполненным\n/delete 2 - Удалить элемент из списка\n/move 2 tomorrow 14:00 - Перенести элемент из списка\n/settings - Настройки бота\n/language - Изменить язык\n\nПримеры\nсоздай завтра в 18:00 стоматолог\nкаждую пятницу в 10:00 волонтёрство\nзавтра купить таблетки и отправить письмо',
     thinking: 'Думаю...',
     clarificationNeeded: 'Нужно уточнение:',
     noDrafts: 'Не удалось распознать ни одного черновика.',
@@ -240,6 +280,16 @@ export const TELEGRAM_MESSAGES: Record<TelegramLanguage, TelegramMessages> = {
     reminderTitle: 'Напоминание',
     reminderIn15Minutes: 'Через 15 минут',
     untimedMorningTitle: 'Без времени',
+    doneTitle: 'Готово',
+    deletedTitle: 'Удалено',
+    movedTitle: 'Перенесено',
+    deletePrompt: 'Удалить этот элемент?',
+    confirmDelete: 'Подтвердить удаление',
+    couldNotFindItem: 'Не удалось найти этот элемент. Сначала запустите /today.',
+    couldNotUnderstandDateTime: 'Не удалось понять дату или время.',
+    moveUsage: 'Используйте: /move 2 tomorrow 14:00',
+    recurringMoveUnsupported: 'Этот повторяющийся экземпляр пока нельзя перенести.',
+    alreadyDone: 'Этот элемент уже выполнен.',
     unsupported:
       'Здесь я обрабатываю только запросы календаря и создание черновиков.\n\nПопробуйте:\n◦ что у меня завтра\n◦ покажи ближайшие 5 дней\n◦ завтра купить таблетки\n◦ каждый понедельник в 10:00 волонтёрство',
   },
