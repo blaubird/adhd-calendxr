@@ -1,0 +1,52 @@
+import type { TelegramLanguage } from './i18n';
+
+export const TELEGRAM_COMMANDS = ['start', 'help', 'today', 'tomorrow', 'week', 'settings', 'language'] as const;
+
+type TelegramCommand = (typeof TELEGRAM_COMMANDS)[number];
+
+export const TELEGRAM_COMMAND_DESCRIPTIONS: Record<TelegramLanguage, Record<TelegramCommand, string>> = {
+  en: {
+    start: 'Start or restart the bot',
+    help: 'Show help',
+    today: 'Show today',
+    tomorrow: 'Show tomorrow',
+    week: 'Show next 7 days',
+    settings: 'Bot settings',
+    language: 'Change language',
+  },
+  fr: {
+    start: 'Démarrer ou relancer le bot',
+    help: 'Afficher l’aide',
+    today: 'Voir aujourd’hui',
+    tomorrow: 'Voir demain',
+    week: 'Voir les 7 prochains jours',
+    settings: 'Paramètres du bot',
+    language: 'Changer la langue',
+  },
+  uk: {
+    start: 'Запустити або перезапустити бота',
+    help: 'Показати допомогу',
+    today: 'Показати сьогодні',
+    tomorrow: 'Показати завтра',
+    week: 'Показати наступні 7 днів',
+    settings: 'Налаштування бота',
+    language: 'Змінити мову',
+  },
+  ru: {
+    start: 'Запустить или перезапустить бота',
+    help: 'Показать помощь',
+    today: 'Показать сегодня',
+    tomorrow: 'Показать завтра',
+    week: 'Показать следующие 7 дней',
+    settings: 'Настройки бота',
+    language: 'Изменить язык',
+  },
+};
+
+export function buildTelegramCommands(language: TelegramLanguage) {
+  const descriptions = TELEGRAM_COMMAND_DESCRIPTIONS[language];
+  return TELEGRAM_COMMANDS.map((command) => ({
+    command,
+    description: descriptions[command],
+  }));
+}

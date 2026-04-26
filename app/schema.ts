@@ -92,6 +92,17 @@ export const telegramPendingDrafts = pgTable(
   })
 );
 
+export const telegramUserSettings = pgTable('telegram_user_settings', {
+  chatId: varchar('chat_id', { length: 64 }).primaryKey(),
+  language: varchar('language', { length: 8 }).notNull().default('en'),
+  createdAt: timestamp('created_at', { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
 // ─── Canvas tables ──────────────────────────────────────────
 
 export const boardScope = pgEnum('board_scope', ['day', 'month']);
@@ -154,6 +165,7 @@ export type InsertItem = typeof items.$inferInsert;
 export type SelectItem = typeof items.$inferSelect;
 export type SelectUser = typeof users.$inferSelect;
 export type SelectTelegramPendingDraft = typeof telegramPendingDrafts.$inferSelect;
+export type SelectTelegramUserSettings = typeof telegramUserSettings.$inferSelect;
 export type InsertCanvasBoard = typeof canvasBoards.$inferInsert;
 export type SelectCanvasBoard = typeof canvasBoards.$inferSelect;
 export type InsertCanvasElement = typeof canvasElements.$inferInsert;

@@ -5,8 +5,18 @@ import { genSaltSync, hashSync } from 'bcrypt-ts';
 import { randomUUID } from 'crypto';
 
 import { env } from './env';
-import { InsertItem, SelectItem, items, telegramPendingDrafts, users, canvasBoards, canvasElements } from './schema';
+import {
+  InsertItem,
+  SelectItem,
+  items,
+  telegramPendingDrafts,
+  telegramUserSettings,
+  users,
+  canvasBoards,
+  canvasElements,
+} from './schema';
 import { itemInputSchema, type ItemInput } from './lib/validation';
+import { normalizeTelegramLanguage, type TelegramLanguage } from './lib/telegram/i18n';
 
 const runtimeUrl = env.POSTGRES_URL ?? env.RUNTIME_DATABASE_URL ?? env.DATABASE_URL;
 
@@ -19,7 +29,7 @@ const sslMode = runtimeUrl.includes('localhost') || runtimeUrl.includes('sslmode
   : `${runtimeUrl}${runtimeUrl.includes('?') ? '&' : '?'}sslmode=require`;
 
 const client = postgres(sslMode);
-export const db = drizzle(client, { schema: { users, items, telegramPendingDrafts, canvasBoards, canvasElements } });
+export const db = drizzle(client, { schema: { users, items, telegramPendingDrafts, telegramUserSettings, canvasBoards, canvasElements } });
 
 export async function getUser(email: string) {
   return await db.select().from(users).where(eq(users.email, email));
@@ -244,6 +254,29 @@ export async function cleanupExpiredTelegramDrafts() {
         )
       )
     );
+}
+
+export async function getTelegramLanguage(chatId: string): Promise<TelegramLanguage> {
+  const [settings] = await db
+    .select({ language: telegramUserSettings.language })
+    .from(telegramUserSettings)
+    .where(eq(telegramUserSettings.chatId, chatId))
+    .limit(1);
+
+  return normalizeTelegramLanguage(settings?.language);
+}
+
+export async function setTelegramLanguage(chatId: string, language: TelegramLanguage) {
+  const [settings] = await db
+    .insert(telegramUserSettings)
+    .values({ chatId, language })
+    .onConflictDoUpdate({
+      target: telegramUserSettings.chatId,
+      set: { language, updatedAt: new Date() },
+    })
+    .returning();
+
+  return settings;
 }
 
 export type ItemRecord = SelectItem;

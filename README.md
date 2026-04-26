@@ -84,7 +84,7 @@ Telegram Phase 1 has two transports that reuse the same shared handler:
 - Local polling: `scripts/telegram-dev.ts`
 - Production webhook: `POST /api/telegram/webhook`
 
-Both paths enforce `TELEGRAM_ALLOWED_CHAT_ID`, support `/start`, `/help`, `/today`, `/tomorrow`, `/week`, natural-language draft creation, and Confirm / Cancel callbacks.
+Both paths enforce `TELEGRAM_ALLOWED_CHAT_ID`, support `/start`, `/help`, `/today`, `/tomorrow`, `/week`, `/settings`, `/language`, natural-language draft creation, and Confirm / Cancel callbacks.
 
 ### Local development
 
@@ -108,9 +108,12 @@ APP_BASE_URL=http://localhost:3000
 After pushing and waiting for Vercel to deploy:
 
 ```bash
+pnpm telegram:set-commands
 pnpm telegram:set-webhook
 pnpm telegram:webhook-info
 ```
+
+`telegram:set-commands` registers the native slash command list, localized command descriptions (`en`, `fr`, `uk`, `ru`), and sets Telegram's native menu button to `commands`. It also applies the menu button to `TELEGRAM_ALLOWED_CHAT_ID` when that env var is present.
 
 `telegram:set-webhook` points Telegram to:
 
@@ -175,3 +178,7 @@ Invalid or missing secrets are rejected before the update is processed.
 ### Pending Telegram Drafts
 
 Confirm / Cancel callbacks use the `telegram_pending_drafts` Postgres table, not in-memory state. This keeps production webhook callbacks reliable on Vercel serverless instances and also keeps local polling behavior aligned with production.
+
+### Telegram User Settings
+
+Bot interface language is stored in `telegram_user_settings`, keyed by Telegram chat id. Apply migration `0005_telegram_user_settings` before using `/language`, `/settings`, digest localization, or localized command responses in production.

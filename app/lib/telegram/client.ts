@@ -42,6 +42,30 @@ export class TelegramClient {
     return await res.json();
   }
 
+  async setMyCommands(commands: Array<{ command: string; description: string }>, languageCode?: string) {
+    const res = await fetch(`${this.baseUrl}/setMyCommands`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        commands,
+        ...(languageCode ? { language_code: languageCode } : {}),
+      }),
+    });
+    return await res.json();
+  }
+
+  async setChatMenuButton(chatId?: string) {
+    const res = await fetch(`${this.baseUrl}/setChatMenuButton`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...(chatId ? { chat_id: chatId } : {}),
+        menu_button: { type: 'commands' },
+      }),
+    });
+    return await res.json();
+  }
+
   async sendMessage(chatId: string, text: string, options?: any) {
     const res = await fetch(`${this.baseUrl}/sendMessage`, {
       method: 'POST',

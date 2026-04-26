@@ -1,6 +1,7 @@
 import { differenceInCalendarDays } from 'date-fns';
 
 import { formatDayKey, normalizeDayString, parseDayKey } from 'app/lib/datetime';
+import { type TelegramLanguage, t } from './i18n';
 
 export const TELEGRAM_MAX_AI_TEXT_LENGTH = 1000;
 export const TELEGRAM_MAX_QUERY_RANGE_DAYS = 30;
@@ -38,9 +39,6 @@ export type TelegramQueryRange = {
 export type TelegramTextGateResult =
   | { allowed: true; text: string }
   | { allowed: false; reason: 'empty' | 'too_long' | 'unsafe' | 'unrelated'; message: string };
-
-const HELP_MESSAGE =
-  'I only handle calendar queries and draft creation here.\n\nTry:\n• что у меня завтра\n• покажи ближайшие 5 дней\n• завтра купить таблетки\n• каждый понедельник в 10:00 волонтёрство';
 
 const HARD_REJECT_PATTERNS = [
   /ignore (all |previous )?instructions/i,
@@ -142,30 +140,30 @@ export function isLikelyCalendarQuery(text: string) {
   return CALENDAR_QUERY_PATTERNS.some((pattern) => pattern.test(normalized));
 }
 
-export function gateTelegramTextBeforeAi(rawText: string): TelegramTextGateResult {
+export function gateTelegramTextBeforeAi(rawText: string, language: TelegramLanguage = 'en'): TelegramTextGateResult {
   const text = rawText.trim();
   if (!text) return { allowed: false, reason: 'empty', message: '' };
   if (text.length > TELEGRAM_MAX_AI_TEXT_LENGTH) {
     return {
       allowed: false,
       reason: 'too_long',
-      message: 'That message is too long for Telegram calendar routing. Please send one calendar request at a time.',
+      message: t(language).unsupported,
     };
   }
   if (HARD_REJECT_PATTERNS.some((pattern) => pattern.test(text))) {
-    return { allowed: false, reason: 'unsafe', message: HELP_MESSAGE };
+    return { allowed: false, reason: 'unsafe', message: t(language).unsupported };
   }
   if (UNRELATED_PATTERNS.some((pattern) => pattern.test(text))) {
-    return { allowed: false, reason: 'unrelated', message: HELP_MESSAGE };
+    return { allowed: false, reason: 'unrelated', message: t(language).unsupported };
   }
   if (!CALENDAR_RELEVANCE_PATTERNS.some((pattern) => pattern.test(text))) {
-    return { allowed: false, reason: 'unrelated', message: HELP_MESSAGE };
+    return { allowed: false, reason: 'unrelated', message: t(language).unsupported };
   }
   return { allowed: true, text };
 }
 
-export function formatTelegramUnsupportedMessage() {
-  return HELP_MESSAGE;
+export function formatTelegramUnsupportedMessage(language: TelegramLanguage = 'en') {
+  return t(language).unsupported;
 }
 
 export function validateTelegramQueryRange(query: TelegramQueryRange | null | undefined) {
