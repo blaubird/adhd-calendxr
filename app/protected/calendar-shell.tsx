@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Draft, Item } from 'app/types';
 import { formatDateFull, parseDayKey, formatDayEU, formatTimeRange } from 'app/lib/datetime';
 
@@ -17,12 +17,27 @@ export default function CalendarShell({
   initialItems,
   initialMonth,
   userEmail,
+  onSelectedDayChange,
+  onMonthChange,
+  onOpenDayCanvas,
 }: {
   initialItems: Item[];
   initialMonth: string;
   userEmail: string;
+  onSelectedDayChange?: (day: string) => void;
+  onMonthChange?: (month: string) => void;
+  onOpenDayCanvas?: (day: string) => void;
 }) {
   const cal = useMonthCalendar(initialItems, initialMonth);
+
+  // Sync selected day and month to parent
+  useEffect(() => {
+    onSelectedDayChange?.(cal.selectedDay);
+  }, [cal.selectedDay, onSelectedDayChange]);
+
+  useEffect(() => {
+    onMonthChange?.(cal.monthKey);
+  }, [cal.monthKey, onMonthChange]);
 
   const {
     pendingDrafts,
@@ -250,6 +265,7 @@ export default function CalendarShell({
         }
         onReorderUntimed={(newOrder) => cal.saveItemsOrder(newOrder)}
         onAddNew={openNew}
+        onOpenDayCanvas={onOpenDayCanvas}
         chatSection={chatSection}
       />
 

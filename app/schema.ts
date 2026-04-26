@@ -92,7 +92,69 @@ export const telegramPendingDrafts = pgTable(
   })
 );
 
+// ─── Canvas tables ──────────────────────────────────────────
+
+export const boardScope = pgEnum('board_scope', ['day', 'month']);
+export const canvasElementType = pgEnum('canvas_element_type', ['text', 'checklist', 'stroke']);
+
+export const canvasBoards = pgTable(
+  'canvas_boards',
+  {
+    id: serial('id').primaryKey(),
+    userId: integer('user_id')
+      .references(() => users.id, { onDelete: 'cascade' })
+      .notNull(),
+    scope: boardScope('scope').notNull(),
+    scopeKey: varchar('scope_key', { length: 10 }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => ({
+    userScopeKeyIdx: uniqueIndex('canvas_boards_user_scope_key_unique').on(
+      table.userId,
+      table.scope,
+      table.scopeKey
+    ),
+  })
+);
+
+export const canvasElements = pgTable(
+  'canvas_elements',
+  {
+    id: serial('id').primaryKey(),
+    boardId: integer('board_id')
+      .references(() => canvasBoards.id, { onDelete: 'cascade' })
+      .notNull(),
+    type: canvasElementType('type').notNull(),
+    x: integer('x').notNull().default(0),
+    y: integer('y').notNull().default(0),
+    width: integer('width').notNull().default(200),
+    height: integer('height').notNull().default(100),
+    zIndex: integer('z_index').notNull().default(0),
+    data: jsonb('data').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => ({
+    boardIdx: index('canvas_elements_board_idx').on(table.boardId),
+  })
+);
+
+// ─── Type exports ───────────────────────────────────────────
+
 export type InsertItem = typeof items.$inferInsert;
 export type SelectItem = typeof items.$inferSelect;
 export type SelectUser = typeof users.$inferSelect;
 export type SelectTelegramPendingDraft = typeof telegramPendingDrafts.$inferSelect;
+export type InsertCanvasBoard = typeof canvasBoards.$inferInsert;
+export type SelectCanvasBoard = typeof canvasBoards.$inferSelect;
+export type InsertCanvasElement = typeof canvasElements.$inferInsert;
+export type SelectCanvasElement = typeof canvasElements.$inferSelect;

@@ -77,44 +77,43 @@ export default function GamblingTab() {
   if (!isClient) return null;
 
   return (
-    <div className="flex flex-col items-center w-full h-full p-8 overflow-y-auto bg-[var(--bg-root)] animate-fade-in">
-      <div className="max-w-4xl w-full flex flex-col items-center gap-10 mt-4">
+    <div className="gambling-tab animate-fade-in">
+      <div className="gambling-stage">
         
-        <div className="text-center space-y-3 relative w-full flex justify-center items-center">
-          <div className="absolute left-0 top-1/2 -translate-y-1/2">
+        <div className="gambling-header">
+          <div>
             {(totalPoints <= 0 || totalPoints < SPIN_COST) && !isSpinning && (
               <button 
                 onClick={resetScore}
-                className="text-xs uppercase tracking-widest text-sky-400 border border-sky-500/30 bg-sky-950/30 px-4 py-2 rounded-xl hover:bg-sky-900/50 transition-colors"
+                className="gambling-refill"
               >
                 Refill Chips
               </button>
             )}
           </div>
           <div>
-            <h1 className="text-4xl font-bold text-white tracking-widest uppercase drop-shadow-md">Cosmic Slots</h1>
-            <p className="text-sm text-slate-400 font-medium mt-3">Match 3+ consecutive symbols to win. {SPIN_COST} pts per spin.</p>
+            <h1 className="gambling-title drop-shadow-md">Cosmic Slots</h1>
+            <p className="gambling-subtitle">Match 3+ consecutive symbols to win. {SPIN_COST} pts per spin.</p>
           </div>
         </div>
 
         {/* Score & Message Board */}
-        <div className="flex flex-col items-center gap-3 bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-2xl px-10 py-6 shadow-soft w-full max-w-md">
-          <div className="flex justify-between w-full items-center">
+        <div className="gambling-scoreboard">
+          <div className="gambling-score-row">
             <div className="flex flex-col items-start">
-              <span className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold">Balance</span>
-              <span className={`text-2xl font-semibold font-mono tracking-tight ${totalPoints < 0 ? 'text-rose-400' : 'text-sky-400'}`}>
+              <span className="gambling-score-label">Balance</span>
+              <span className={`gambling-score-value ${totalPoints < 0 ? 'text-rose-400' : 'text-sky-400'}`}>
                 {totalPoints}
               </span>
             </div>
             <div className="flex flex-col items-end">
-              <span className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold">Last Win</span>
-              <span className={`text-2xl font-semibold font-mono tracking-tight transition-colors duration-300 ${recentWin > 0 ? 'text-emerald-400' : 'text-slate-600'}`}>
+              <span className="gambling-score-label">Last Win</span>
+              <span className={`gambling-score-value transition-colors duration-300 ${recentWin > 0 ? 'text-emerald-400' : 'text-slate-600'}`}>
                 {recentWin > 0 ? `+${recentWin}` : '0'}
               </span>
             </div>
           </div>
-          <div className="h-px w-full bg-[var(--border-subtle)] my-1" />
-          <div className={`text-lg font-bold tracking-widest uppercase transition-all duration-300 text-center ${
+          <div className={`gambling-message transition-all duration-300 ${
             isSpinning ? 'text-slate-500 animate-pulse' :
             recentWin >= PAYOUTS.jackpot ? 'text-amber-400 drop-shadow-[0_0_10px_rgba(251,191,36,0.8)] animate-bounce' :
             recentWin >= PAYOUTS.big ? 'text-emerald-400 drop-shadow-[0_0_10px_rgba(52,211,153,0.5)]' :
@@ -126,12 +125,12 @@ export default function GamblingTab() {
         </div>
 
         {/* Slot Machine */}
-        <div className="relative p-8 rounded-[2rem] bg-slate-900 border border-[var(--border-default)] shadow-[0_20px_50px_rgba(0,0,0,0.5),inset_0_2px_15px_rgba(255,255,255,0.05)]">
-          <div className="flex gap-4">
+        <div className="slot-machine">
+          <div className="slot-reels">
             {grid.map((column, reelIndex) => (
               <div 
                 key={reelIndex} 
-                className="flex flex-col gap-4 relative"
+                className="slot-reel relative"
               >
                 <Reel 
                   isSpinning={isSpinning} 
@@ -148,10 +147,10 @@ export default function GamblingTab() {
         <button
           onClick={spin}
           disabled={isSpinning}
-          className={`px-16 py-5 rounded-2xl font-bold text-xl tracking-widest uppercase transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-sky-500/50 ${
-            isSpinning 
-              ? 'bg-slate-800 text-slate-500 cursor-not-allowed shadow-none border border-slate-700' 
-              : 'bg-sky-500 text-white hover:bg-sky-400 hover:scale-105 active:scale-95 shadow-[0_0_30px_rgba(56,189,248,0.4)] border border-sky-400'
+          className={`gambling-spin-btn ${
+            isSpinning
+              ? 'gambling-spin-btn--busy'
+              : 'gambling-spin-btn--ready'
           }`}
         >
           {isSpinning ? 'Spinning...' : `Spin (${SPIN_COST})`}
@@ -208,16 +207,16 @@ function Reel({
         return (
           <div 
             key={`${reelIndex}-${rowIndex}`}
-            className={`w-28 h-28 flex items-center justify-center bg-[var(--bg-card)] rounded-2xl border-2 transition-all duration-300 overflow-hidden ${
-              isLocallySpinning 
-                ? 'border-[var(--border-subtle)] opacity-40 blur-[3px] scale-[0.98]' 
-                : isWin 
-                  ? 'border-sky-400 shadow-[0_0_20px_rgba(56,189,248,0.5),inset_0_0_30px_rgba(56,189,248,0.3)] bg-sky-950/40 scale-105 z-10' 
-                  : 'border-[var(--border-subtle)] opacity-90 shadow-inner'
+            className={`slot-tile ${
+              isLocallySpinning
+                ? 'slot-tile--spinning'
+                : isWin
+                  ? 'slot-tile--win'
+                  : 'opacity-90'
             }`}
           >
             <span 
-              className={`text-6xl transition-all duration-300 ${
+              className={`slot-symbol ${
                 isWin ? 'animate-bounce drop-shadow-[0_0_15px_rgba(255,255,255,0.6)]' : ''
               } ${isLocallySpinning ? 'animate-pulse' : ''}`}
             >

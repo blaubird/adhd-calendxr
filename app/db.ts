@@ -5,7 +5,7 @@ import { genSaltSync, hashSync } from 'bcrypt-ts';
 import { randomUUID } from 'crypto';
 
 import { env } from './env';
-import { InsertItem, SelectItem, items, telegramPendingDrafts, users } from './schema';
+import { InsertItem, SelectItem, items, telegramPendingDrafts, users, canvasBoards, canvasElements } from './schema';
 import { itemInputSchema, type ItemInput } from './lib/validation';
 
 const runtimeUrl = env.POSTGRES_URL ?? env.RUNTIME_DATABASE_URL ?? env.DATABASE_URL;
@@ -19,7 +19,7 @@ const sslMode = runtimeUrl.includes('localhost') || runtimeUrl.includes('sslmode
   : `${runtimeUrl}${runtimeUrl.includes('?') ? '&' : '?'}sslmode=require`;
 
 const client = postgres(sslMode);
-export const db = drizzle(client, { schema: { users, items, telegramPendingDrafts } });
+export const db = drizzle(client, { schema: { users, items, telegramPendingDrafts, canvasBoards, canvasElements } });
 
 export async function getUser(email: string) {
   return await db.select().from(users).where(eq(users.email, email));

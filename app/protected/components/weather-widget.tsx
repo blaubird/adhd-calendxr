@@ -42,32 +42,29 @@ export function WeatherWidget() {
     return <div className="weather-widget text-xs text-slate-500">Loading weather…</div>;
   }
 
-  // We want Today, Tomorrow, Day After
-  const days = ['Today', 'Tomorrow', 'Day After'];
+  const days = ['D+0', 'D+1', 'D+2'];
 
   return (
-    <div className="weather-widget flex flex-col gap-3 mt-4 pt-4 border-t border-slate-800">
-      <h3 className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Paris Weather</h3>
+    <div className="weather-widget">
+      <h3 className="weather-title">Paris Weather</h3>
       {days.map((label, i) => {
         const code = forecast.weathercode[i];
         const min = Math.round(forecast.temperature_2m_min[i]);
         const max = Math.round(forecast.temperature_2m_max[i]);
         const icon = getWeatherIcon(code);
-        
-        const mainTemp = label === 'Today' && currentTemp !== null ? currentTemp : Math.round((min + max) / 2);
-        
+
+        const mainTemp = i === 0 && currentTemp !== null ? currentTemp : Math.round((min + max) / 2);
+
         return (
-          <div key={label} className="flex items-center justify-between text-xs text-slate-300 py-1">
-            <span className="w-16">{label}</span>
-            <span className="text-xl">{icon}</span>
-            <div className="flex flex-col items-center w-28">
-              <span className="text-white font-medium text-sm leading-none mb-1.5">{mainTemp}°</span>
-              <div className="flex items-center gap-2 w-full">
-                <span className="text-slate-500 text-[10px] w-4 text-right">{min}°</span>
-                <div className="flex-1 h-1.5 rounded-full bg-gradient-to-r from-sky-900 to-rose-800 overflow-hidden relative">
-                   <div className="absolute top-0 bottom-0 left-0 right-0 bg-white/10" />
-                </div>
-                <span className="text-slate-400 text-[10px] w-4">{max}°</span>
+          <div key={label} className="weather-row">
+            <span className="weather-label">{label}</span>
+            <span className="weather-icon">{icon}</span>
+            <div className="weather-temp-wrap">
+              <span className="weather-main-temp">{mainTemp}°</span>
+              <div className="weather-range">
+                <span className="weather-range-temp weather-range-temp--min">{min}°</span>
+                <div className="weather-bar" />
+                <span className="weather-range-temp weather-range-temp--max">{max}°</span>
               </div>
             </div>
           </div>

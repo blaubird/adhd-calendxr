@@ -228,6 +228,7 @@ export function DayPanel({
   onToggleDone,
   onReorderUntimed,
   onAddNew,
+  onOpenDayCanvas,
   chatSection,
 }: {
   selectedDay: string;
@@ -239,6 +240,7 @@ export function DayPanel({
   onToggleDone: (item: Item) => void;
   onReorderUntimed?: (items: Item[]) => void;
   onAddNew: (day: string) => void;
+  onOpenDayCanvas?: (day: string) => void;
   chatSection: React.ReactNode;
 }) {
   const [aiOpen, setAiOpen] = useState(false);
@@ -287,17 +289,29 @@ export function DayPanel({
   return (
     <div className="day-panel">
       <div className="day-panel-header">
-        <div>
+        <div className="day-panel-header-copy">
           <p className="day-panel-weekday">{dayOfWeek}</p>
           <h2 className="day-panel-date">{dayLabel}</h2>
         </div>
-        <button
-          className="day-panel-add-btn"
-          onClick={() => onAddNew(selectedDay)}
-          type="button"
-        >
-          + Add
-        </button>
+        <div className="day-panel-header-actions">
+          {onOpenDayCanvas && (
+            <button
+              className="day-panel-canvas-btn"
+              onClick={() => onOpenDayCanvas(selectedDay)}
+              type="button"
+              title="Open Day Canvas"
+            >
+              ✎ Canvas
+            </button>
+          )}
+          <button
+            className="day-panel-add-btn"
+            onClick={() => onAddNew(selectedDay)}
+            type="button"
+          >
+            + Add
+          </button>
+        </div>
       </div>
 
       <div key={selectedDay} className="day-panel-items animate-fade-in">
@@ -338,10 +352,10 @@ export function DayPanel({
       </div>
 
       {/* AI Draft section placeholder / actual chat */}
-      <div className="day-panel-ai-toggle-section p-4 border-t border-slate-800 mt-auto">
+      <div className="p-2 border-t border-slate-800 shrink-0">
         <button 
           onClick={() => setAiOpen(!aiOpen)}
-          className="w-full py-2.5 px-4 rounded-xl border border-slate-700 bg-slate-900/50 hover:bg-slate-800 text-slate-200 text-sm font-medium flex justify-between items-center transition-all shadow-sm"
+          className="w-full py-1.5 px-2.5 rounded-lg border border-slate-700 bg-slate-900/50 hover:bg-slate-800 text-slate-200 text-xs font-medium flex justify-between items-center transition-all shadow-sm"
           type="button"
         >
           <span className="flex items-center gap-2"><span className="text-sky-400">✨</span> AI Drafts</span>
@@ -350,7 +364,7 @@ export function DayPanel({
       </div>
 
       {aiOpen && (
-        <div className="day-panel-ai-section bg-slate-900/30 border-t border-slate-800 animate-slide-up">
+        <div className="day-panel-ai-section bg-slate-900/30 border-t border-slate-800 animate-slide-up overflow-y-auto shrink-0" style={{ maxHeight: '34vh' }}>
           {chatSection}
         </div>
       )}
