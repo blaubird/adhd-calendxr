@@ -55,7 +55,7 @@ Schema is defined in [`app/schema.ts`](app/schema.ts) and migrations live in [`d
 DATABASE_URL=$POSTGRES_URL_NON_POOLING pnpm db:push
 ```
 
-- CI/CD: configure GitHub Actions secrets `POSTGRES_URL_NON_POOLING` and `VERCEL_TOKEN`. The workflow `.github/workflows/migrate-deploy.yml` runs migrations before deploying to Vercel.
+- CI/CD: configure GitHub Actions secret `POSTGRES_URL_NON_POOLING`. The workflow `.github/workflows/migrate-deploy.yml` verifies the secret and runs migrations. Production deploys are handled by the connected Vercel Git integration on pushes to `main`.
 
 ## Core features
 

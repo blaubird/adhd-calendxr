@@ -1,4 +1,4 @@
-name: Migrate & Deploy
+name: Migrate
 
 on:
   push:
@@ -8,6 +8,7 @@ on:
 jobs:
   migrate:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     env:
       DATABASE_URL: ${{ secrets.POSTGRES_URL_NON_POOLING }}
       NODE_ENV: production
@@ -18,21 +19,13 @@ jobs:
         with:
           node-version: 20
           cache: 'pnpm'
+      - name: Validate CI secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${DATABASE_URL:-}" ]; then
+            echo "::error::Missing GitHub secret POSTGRES_URL_NON_POOLING. Add the direct/non-pooling production database URL."
+            exit 1
+          fi
       - run: pnpm install --frozen-lockfile
       - run: pnpm run ci:migrate
-
-  deploy:
-    needs: migrate
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'pnpm'
-      - name: Deploy to Vercel (prod)
-        run: |
-          pnpm dlx vercel pull --yes --environment=production --token ${{ secrets.VERCEL_TOKEN }}
-          pnpm dlx vercel build --prod --token ${{ secrets.VERCEL_TOKEN }}
-          pnpm dlx vercel deploy --prebuilt --prod --token ${{ secrets.VERCEL_TOKEN }}
