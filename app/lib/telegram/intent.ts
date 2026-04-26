@@ -121,6 +121,27 @@ const CALENDAR_RELEVANCE_PATTERNS = [
   /\bmeeting\b|\bappointment\b|\bbuy\b|\bdo\b|\bcall\b|\bsend\b/i,
 ];
 
+const CALENDAR_QUERY_PATTERNS = [
+  /что\s+(там\s+)?у\s+меня/i,
+  /покажи(\s+календар[ьяеь])?/i,
+  /какие\s+(дела|события)/i,
+  /что\s+запланировано/i,
+  /что\s+стоит/i,
+  /есть\s+ли/i,
+  /когда\s+у\s+меня/i,
+  /what\s+do\s+i\s+have/i,
+  /show\s+me/i,
+  /what(?:'s|\s+is)\s+scheduled/i,
+  /do\s+i\s+have/i,
+  /when\s+is/i,
+];
+
+export function isLikelyCalendarQuery(text: string) {
+  const normalized = text.trim();
+  if (!normalized) return false;
+  return CALENDAR_QUERY_PATTERNS.some((pattern) => pattern.test(normalized));
+}
+
 export function gateTelegramTextBeforeAi(rawText: string): TelegramTextGateResult {
   const text = rawText.trim();
   if (!text) return { allowed: false, reason: 'empty', message: '' };
