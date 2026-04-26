@@ -1,5 +1,6 @@
 import {
   date,
+  boolean,
   index,
   integer,
   foreignKey,
@@ -95,6 +96,7 @@ export const telegramPendingDrafts = pgTable(
 export const telegramUserSettings = pgTable('telegram_user_settings', {
   chatId: varchar('chat_id', { length: 64 }).primaryKey(),
   language: varchar('language', { length: 8 }).notNull().default('en'),
+  remindersEnabled: boolean('reminders_enabled').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -102,6 +104,28 @@ export const telegramUserSettings = pgTable('telegram_user_settings', {
     .defaultNow()
     .notNull(),
 });
+
+export const telegramReminderDeliveries = pgTable(
+  'telegram_reminder_deliveries',
+  {
+    id: serial('id').primaryKey(),
+    deliveryKey: varchar('delivery_key', { length: 255 }).notNull(),
+    chatId: varchar('chat_id', { length: 64 }).notNull(),
+    itemId: varchar('item_id', { length: 64 }),
+    occurrenceDay: date('occurrence_day').notNull(),
+    occurrenceTime: time('occurrence_time'),
+    reminderKind: varchar('reminder_kind', { length: 40 }).notNull(),
+    scheduledFor: timestamp('scheduled_for', { withTimezone: true }).notNull(),
+    sentAt: timestamp('sent_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => ({
+    deliveryKeyUnique: uniqueIndex('telegram_reminder_deliveries_delivery_key_unique').on(table.deliveryKey),
+    chatKindIdx: index('telegram_reminder_deliveries_chat_kind_idx').on(table.chatId, table.reminderKind),
+  })
+);
 
 // ─── Canvas tables ──────────────────────────────────────────
 
@@ -166,6 +190,7 @@ export type SelectItem = typeof items.$inferSelect;
 export type SelectUser = typeof users.$inferSelect;
 export type SelectTelegramPendingDraft = typeof telegramPendingDrafts.$inferSelect;
 export type SelectTelegramUserSettings = typeof telegramUserSettings.$inferSelect;
+export type SelectTelegramReminderDelivery = typeof telegramReminderDeliveries.$inferSelect;
 export type InsertCanvasBoard = typeof canvasBoards.$inferInsert;
 export type SelectCanvasBoard = typeof canvasBoards.$inferSelect;
 export type InsertCanvasElement = typeof canvasElements.$inferInsert;

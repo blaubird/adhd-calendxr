@@ -8,8 +8,9 @@ import {
   cancelTelegramPendingDraft,
   confirmTelegramPendingDraft,
   createTelegramPendingDraft,
-  getTelegramLanguage,
+  getTelegramSettings,
   setTelegramLanguage,
+  setTelegramRemindersEnabled,
 } from 'app/db';
 import {
   formatTelegramDay,
@@ -81,10 +82,16 @@ async function sendLanguagePicker(client: TelegramClient, chatId: string, langua
   }));
 }
 
-async function sendSettings(client: TelegramClient, chatId: string, language: TelegramLanguage, metrics: TelegramRouteMetrics) {
-  await timeTelegram(metrics, () => client.sendMessage(chatId, formatTelegramSettings(language), {
+async function sendSettings(
+  client: TelegramClient,
+  chatId: string,
+  language: TelegramLanguage,
+  remindersEnabled: boolean,
+  metrics: TelegramRouteMetrics
+) {
+  await timeTelegram(metrics, () => client.sendMessage(chatId, formatTelegramSettings(language, remindersEnabled), {
     parse_mode: 'HTML',
-    reply_markup: formatTelegramSettingsKeyboard(language),
+    reply_markup: formatTelegramSettingsKeyboard(language, remindersEnabled),
   }));
 }
 
@@ -154,8 +161,9 @@ export async function handleTelegramUpdate(update: any, client: TelegramClient, 
   }
 
   const dbStartedForSettings = Date.now();
-  let language = await getTelegramLanguage(chatId);
+  let settings = await getTelegramSettings(chatId);
   metrics.dbQueryDurationMs = durationSince(dbStartedForSettings);
+  let language = settings.language;
   const messages = t(language);
 
   // 2. Handle Callback Queries (Confirm / Cancel / Language / Settings)
@@ -199,6 +207,27 @@ export async function handleTelegramUpdate(update: any, client: TelegramClient, 
         }));
       } else {
         await sendLanguagePicker(client, chatId, language, metrics);
+      }
+      logTelegramTiming('callback_settings', startedAt, metrics);
+      return;
+    }
+
+    if (data === 'settings:reminders:on' || data === 'settings:reminders:off') {
+      const enabled = data.endsWith(':on');
+      const dbStartedAt = Date.now();
+      await setTelegramRemindersEnabled(chatId, enabled);
+      settings = { ...settings, remindersEnabled: enabled };
+      metrics.dbQueryDurationMs = durationSince(dbStartedAt);
+
+      const responseText = enabled ? messages.remindersEnabled : messages.remindersDisabled;
+      await timeTelegram(metrics, () => client.answerCallbackQuery(queryId, responseText));
+      if (messageId) {
+        await timeTelegram(metrics, () => client.editMessageText(chatId, messageId, formatTelegramSettings(language, settings.remindersEnabled), {
+          parse_mode: 'HTML',
+          reply_markup: formatTelegramSettingsKeyboard(language, settings.remindersEnabled),
+        }));
+      } else {
+        await sendSettings(client, chatId, language, settings.remindersEnabled, metrics);
       }
       logTelegramTiming('callback_settings', startedAt, metrics);
       return;
@@ -283,7 +312,7 @@ export async function handleTelegramUpdate(update: any, client: TelegramClient, 
     }
 
     if (command === 'settings') {
-      await sendSettings(client, chatId, language, metrics);
+      await sendSettings(client, chatId, language, settings.remindersEnabled, metrics);
       logTelegramTiming('command', startedAt, metrics);
       return;
     }

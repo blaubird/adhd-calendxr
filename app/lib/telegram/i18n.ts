@@ -28,7 +28,12 @@ type TelegramMessages = {
   languageChanged: string;
   settingsTitle: string;
   settingsLanguage: (language: string) => string;
+  settingsReminders: (enabled: boolean) => string;
   changeLanguage: string;
+  enableReminders: string;
+  disableReminders: string;
+  remindersEnabled: string;
+  remindersDisabled: string;
   dayToday: string;
   dayTomorrow: string;
   dayGeneric: string;
@@ -43,13 +48,16 @@ type TelegramMessages = {
   repeats: string;
   savedPrefix: string;
   noTime: string;
+  reminderTitle: string;
+  reminderIn15Minutes: string;
+  untimedMorningTitle: string;
   unsupported: string;
 };
 
 export const TELEGRAM_MESSAGES: Record<TelegramLanguage, TelegramMessages> = {
   en: {
     start:
-      '☾ CALENDXR is awake.\n\n◇ Commands\n/start - Start or restart the bot\n/help - Show help\n/today - Show today\n/tomorrow - Show tomorrow\n/week - Show next 7 days\n/settings - Bot settings\n/language - Change language\n\n◇ Natural language\nSend a task or event and I will prepare a draft.',
+      'CALENDXR bot is ready.\n\nYou can use:\n/today\n/tomorrow\n/week\n/language\n/settings\n\nSend a task or event and I will prepare a draft.\n\nReminders are off by default. You can enable them in /settings.',
     help:
       '☾ Help\n\n◇ Commands\n/today - Show today\n/tomorrow - Show tomorrow\n/week - Show next 7 days\n/settings - Bot settings\n/language - Change language\n\n◇ Examples\n◦ create dentist tomorrow at 18:00\n◦ every Friday at 10:00 volunteering\n◦ tomorrow buy medicine and send the letter',
     thinking: 'Thinking...',
@@ -68,7 +76,12 @@ export const TELEGRAM_MESSAGES: Record<TelegramLanguage, TelegramMessages> = {
     languageChanged: 'Language changed to English.',
     settingsTitle: '⚙ Settings',
     settingsLanguage: (language) => `Language: ${language}`,
+    settingsReminders: (enabled) => `Reminders: ${enabled ? 'On' : 'Off'}`,
     changeLanguage: 'Change language',
+    enableReminders: 'Enable reminders',
+    disableReminders: 'Disable reminders',
+    remindersEnabled: 'Reminders enabled.',
+    remindersDisabled: 'Reminders disabled.',
     dayToday: 'Today',
     dayTomorrow: 'Tomorrow',
     dayGeneric: 'Day',
@@ -83,12 +96,15 @@ export const TELEGRAM_MESSAGES: Record<TelegramLanguage, TelegramMessages> = {
     repeats: 'Repeats',
     savedPrefix: 'Saved',
     noTime: 'No time',
+    reminderTitle: 'Reminder',
+    reminderIn15Minutes: 'In 15 minutes',
+    untimedMorningTitle: 'Untimed',
     unsupported:
       'I only handle calendar queries and draft creation here.\n\nTry:\n◦ what do I have tomorrow\n◦ show me the next 5 days\n◦ tomorrow buy medicine\n◦ every Monday at 10:00 volunteering',
   },
   fr: {
     start:
-      '☾ CALENDXR est prêt.\n\n◇ Commandes\n/start - Démarrer ou relancer le bot\n/help - Afficher l’aide\n/today - Voir aujourd’hui\n/tomorrow - Voir demain\n/week - Voir les 7 prochains jours\n/settings - Paramètres du bot\n/language - Changer la langue\n\n◇ Langage naturel\nEnvoyez une tâche ou un événement et je préparerai un brouillon.',
+      'Le bot CALENDXR est prêt.\n\nVous pouvez utiliser :\n/today\n/tomorrow\n/week\n/language\n/settings\n\nEnvoyez une tâche ou un événement et je préparerai un brouillon.\n\nLes rappels sont désactivés par défaut. Vous pouvez les activer dans /settings.',
     help:
       '☾ Aide\n\n◇ Commandes\n/today - Voir aujourd’hui\n/tomorrow - Voir demain\n/week - Voir les 7 prochains jours\n/settings - Paramètres du bot\n/language - Changer la langue\n\n◇ Exemples\n◦ créer dentiste demain à 18:00\n◦ chaque vendredi à 10:00 bénévolat\n◦ demain acheter des médicaments et envoyer la lettre',
     thinking: 'Je réfléchis...',
@@ -107,7 +123,12 @@ export const TELEGRAM_MESSAGES: Record<TelegramLanguage, TelegramMessages> = {
     languageChanged: 'La langue a été changée en français.',
     settingsTitle: '⚙ Paramètres',
     settingsLanguage: (language) => `Langue : ${language}`,
+    settingsReminders: (enabled) => `Rappels : ${enabled ? 'Activés' : 'Désactivés'}`,
     changeLanguage: 'Changer la langue',
+    enableReminders: 'Activer les rappels',
+    disableReminders: 'Désactiver les rappels',
+    remindersEnabled: 'Rappels activés.',
+    remindersDisabled: 'Rappels désactivés.',
     dayToday: 'Aujourd’hui',
     dayTomorrow: 'Demain',
     dayGeneric: 'Jour',
@@ -122,12 +143,15 @@ export const TELEGRAM_MESSAGES: Record<TelegramLanguage, TelegramMessages> = {
     repeats: 'Répétition',
     savedPrefix: 'Enregistré',
     noTime: 'Sans heure',
+    reminderTitle: 'Rappel',
+    reminderIn15Minutes: 'Dans 15 minutes',
+    untimedMorningTitle: 'Sans heure',
     unsupported:
       'Je gère seulement les requêtes de calendrier et la création de brouillons ici.\n\nEssayez :\n◦ qu’est-ce que j’ai demain\n◦ montre les 5 prochains jours\n◦ demain acheter des médicaments\n◦ chaque lundi à 10:00 bénévolat',
   },
   uk: {
     start:
-      '☾ CALENDXR готовий.\n\n◇ Команди\n/start - Запустити або перезапустити бота\n/help - Показати допомогу\n/today - Показати сьогодні\n/tomorrow - Показати завтра\n/week - Показати наступні 7 днів\n/settings - Налаштування бота\n/language - Змінити мову\n\n◇ Природна мова\nНадішліть задачу або подію, і я підготую чернетку.',
+      'Бот CALENDXR готовий.\n\nМожна використовувати:\n/today\n/tomorrow\n/week\n/language\n/settings\n\nНадішліть задачу або подію, і я підготую чернетку.\n\nНагадування типово вимкнені. Їх можна ввімкнути в /settings.',
     help:
       '☾ Допомога\n\n◇ Команди\n/today - Показати сьогодні\n/tomorrow - Показати завтра\n/week - Показати наступні 7 днів\n/settings - Налаштування бота\n/language - Змінити мову\n\n◇ Приклади\n◦ створити стоматолога завтра о 18:00\n◦ щоп’ятниці о 10:00 волонтерство\n◦ завтра купити ліки й надіслати лист',
     thinking: 'Думаю...',
@@ -146,7 +170,12 @@ export const TELEGRAM_MESSAGES: Record<TelegramLanguage, TelegramMessages> = {
     languageChanged: 'Мову змінено на українську.',
     settingsTitle: '⚙ Налаштування',
     settingsLanguage: (language) => `Мова: ${language}`,
+    settingsReminders: (enabled) => `Нагадування: ${enabled ? 'Увімкнені' : 'Вимкнені'}`,
     changeLanguage: 'Змінити мову',
+    enableReminders: 'Увімкнути нагадування',
+    disableReminders: 'Вимкнути нагадування',
+    remindersEnabled: 'Нагадування увімкнено.',
+    remindersDisabled: 'Нагадування вимкнено.',
     dayToday: 'Сьогодні',
     dayTomorrow: 'Завтра',
     dayGeneric: 'День',
@@ -161,12 +190,15 @@ export const TELEGRAM_MESSAGES: Record<TelegramLanguage, TelegramMessages> = {
     repeats: 'Повтор',
     savedPrefix: 'Збережено',
     noTime: 'Без часу',
+    reminderTitle: 'Нагадування',
+    reminderIn15Minutes: 'Через 15 хвилин',
+    untimedMorningTitle: 'Без часу',
     unsupported:
       'Тут я обробляю лише запити календаря та створення чернеток.\n\nСпробуйте:\n◦ що у мене завтра\n◦ покажи найближчі 5 днів\n◦ завтра купити ліки\n◦ щопонеділка о 10:00 волонтерство',
   },
   ru: {
     start:
-      '☾ CALENDXR готов.\n\n◇ Команды\n/start - Запустить или перезапустить бота\n/help - Показать помощь\n/today - Показать сегодня\n/tomorrow - Показать завтра\n/week - Показать следующие 7 дней\n/settings - Настройки бота\n/language - Изменить язык\n\n◇ Естественный язык\nОтправьте задачу или событие, и я подготовлю черновик.',
+      'Бот CALENDXR готов.\n\nМожно использовать:\n/today\n/tomorrow\n/week\n/language\n/settings\n\nОтправьте задачу или событие, и я подготовлю черновик.\n\nНапоминания по умолчанию выключены. Их можно включить в /settings.',
     help:
       '☾ Помощь\n\n◇ Команды\n/today - Показать сегодня\n/tomorrow - Показать завтра\n/week - Показать следующие 7 дней\n/settings - Настройки бота\n/language - Изменить язык\n\n◇ Примеры\n◦ создай завтра в 18:00 стоматолог\n◦ каждую пятницу в 10:00 волонтёрство\n◦ завтра купить таблетки и отправить письмо',
     thinking: 'Думаю...',
@@ -185,7 +217,12 @@ export const TELEGRAM_MESSAGES: Record<TelegramLanguage, TelegramMessages> = {
     languageChanged: 'Язык изменён на русский.',
     settingsTitle: '⚙ Настройки',
     settingsLanguage: (language) => `Язык: ${language}`,
+    settingsReminders: (enabled) => `Напоминания: ${enabled ? 'Включены' : 'Выключены'}`,
     changeLanguage: 'Изменить язык',
+    enableReminders: 'Включить напоминания',
+    disableReminders: 'Выключить напоминания',
+    remindersEnabled: 'Напоминания включены.',
+    remindersDisabled: 'Напоминания выключены.',
     dayToday: 'Сегодня',
     dayTomorrow: 'Завтра',
     dayGeneric: 'День',
@@ -200,6 +237,9 @@ export const TELEGRAM_MESSAGES: Record<TelegramLanguage, TelegramMessages> = {
     repeats: 'Повтор',
     savedPrefix: 'Сохранено',
     noTime: 'Без времени',
+    reminderTitle: 'Напоминание',
+    reminderIn15Minutes: 'Через 15 минут',
+    untimedMorningTitle: 'Без времени',
     unsupported:
       'Здесь я обрабатываю только запросы календаря и создание черновиков.\n\nПопробуйте:\n◦ что у меня завтра\n◦ покажи ближайшие 5 дней\n◦ завтра купить таблетки\n◦ каждый понедельник в 10:00 волонтёрство',
   },

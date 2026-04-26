@@ -43,7 +43,7 @@ Other:
 - `TELEGRAM_MODE` – `polling` locally, `webhook` in production.
 - `TELEGRAM_TIMEZONE` – Telegram-facing timezone, usually `Europe/Paris`.
 - `TELEGRAM_DIGEST_HOUR` – desired local digest hour, usually `9`.
-- `CRON_SECRET` – secret used to protect the production digest endpoint.
+- `CRON_SECRET` – secret used to protect Telegram cron endpoints.
 
 ## Database & migrations
 
@@ -153,15 +153,28 @@ curl -H "Authorization: Bearer <CRON_SECRET>" "https://calendar.luminiteq.eu/api
 
 The digest endpoint sends today's recurrence-expanded items to `TELEGRAM_CHAT_ID` and is protected by `CRON_SECRET`.
 
+### Telegram Reminders
+
+Telegram reminders are disabled by default. Enable or disable them in `/settings`.
+
+When enabled, `/api/telegram/reminders` sends:
+
+- one timed reminder 15 minutes before `timeStart`;
+- no timed reminders for untimed or done items;
+- recurrence-expanded reminders;
+- one untimed morning digest near 09:00 Europe/Paris when there are untimed, not-done items.
+
+Duplicate sends are guarded by `telegram_reminder_deliveries`. Apply migration `0006_telegram_reminders` before enabling reminders in production.
+
 ### Vercel Cron
 
 `vercel.json` schedules:
 
 ```txt
-0 7 * * *
+*/5 * * * *
 ```
 
-Vercel cron is UTC. This is 09:00 in Paris during CEST and 08:00 during CET. For exact 09:00 Europe/Paris year-round, replace this later with an hourly cron window plus durable idempotency.
+The scheduled path is `/api/telegram/reminders`. The endpoint checks the Europe/Paris app time internally and sends the untimed morning digest only once per day in the morning window. Every-5-minute cron requires a Vercel plan that supports that interval.
 
 Vercel Cron requests include `Authorization: Bearer $CRON_SECRET` when `CRON_SECRET` is configured in Vercel.
 
@@ -181,4 +194,4 @@ Confirm / Cancel callbacks use the `telegram_pending_drafts` Postgres table, not
 
 ### Telegram User Settings
 
-Bot interface language is stored in `telegram_user_settings`, keyed by Telegram chat id. Apply migration `0005_telegram_user_settings` before using `/language`, `/settings`, digest localization, or localized command responses in production.
+Bot interface language and reminder opt-in state are stored in `telegram_user_settings`, keyed by Telegram chat id. Apply migrations `0005_telegram_user_settings` and `0006_telegram_reminders` before using `/language`, `/settings`, reminders, digest localization, or localized command responses in production.

@@ -25,6 +25,8 @@ export type Item = {
   sourceId?: number;
   isOccurrence?: boolean;
   isOverride?: boolean;
+  createdAt?: Date | string | null;
+  updatedAt?: Date | string | null;
 };
 
 export type Draft = {

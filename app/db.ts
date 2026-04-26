@@ -10,6 +10,7 @@ import {
   SelectItem,
   items,
   telegramPendingDrafts,
+  telegramReminderDeliveries,
   telegramUserSettings,
   users,
   canvasBoards,
@@ -29,7 +30,9 @@ const sslMode = runtimeUrl.includes('localhost') || runtimeUrl.includes('sslmode
   : `${runtimeUrl}${runtimeUrl.includes('?') ? '&' : '?'}sslmode=require`;
 
 const client = postgres(sslMode);
-export const db = drizzle(client, { schema: { users, items, telegramPendingDrafts, telegramUserSettings, canvasBoards, canvasElements } });
+export const db = drizzle(client, {
+  schema: { users, items, telegramPendingDrafts, telegramUserSettings, telegramReminderDeliveries, canvasBoards, canvasElements },
+});
 
 export async function getUser(email: string) {
   return await db.select().from(users).where(eq(users.email, email));
@@ -266,6 +269,24 @@ export async function getTelegramLanguage(chatId: string): Promise<TelegramLangu
   return normalizeTelegramLanguage(settings?.language);
 }
 
+export async function getTelegramSettings(chatId: string) {
+  const [settings] = await db
+    .select({
+      chatId: telegramUserSettings.chatId,
+      language: telegramUserSettings.language,
+      remindersEnabled: telegramUserSettings.remindersEnabled,
+    })
+    .from(telegramUserSettings)
+    .where(eq(telegramUserSettings.chatId, chatId))
+    .limit(1);
+
+  return {
+    chatId,
+    language: normalizeTelegramLanguage(settings?.language),
+    remindersEnabled: settings?.remindersEnabled ?? false,
+  };
+}
+
 export async function setTelegramLanguage(chatId: string, language: TelegramLanguage) {
   const [settings] = await db
     .insert(telegramUserSettings)
@@ -277,6 +298,80 @@ export async function setTelegramLanguage(chatId: string, language: TelegramLang
     .returning();
 
   return settings;
+}
+
+export async function setTelegramRemindersEnabled(chatId: string, enabled: boolean) {
+  const [settings] = await db
+    .insert(telegramUserSettings)
+    .values({ chatId, remindersEnabled: enabled })
+    .onConflictDoUpdate({
+      target: telegramUserSettings.chatId,
+      set: { remindersEnabled: enabled, updatedAt: new Date() },
+    })
+    .returning();
+
+  return settings;
+}
+
+export async function listTelegramReminderSettings() {
+  const settings = await db
+    .select({
+      chatId: telegramUserSettings.chatId,
+      language: telegramUserSettings.language,
+      remindersEnabled: telegramUserSettings.remindersEnabled,
+    })
+    .from(telegramUserSettings)
+    .where(eq(telegramUserSettings.remindersEnabled, true));
+
+  return settings.map((setting) => ({
+    chatId: setting.chatId,
+    language: normalizeTelegramLanguage(setting.language),
+    remindersEnabled: setting.remindersEnabled,
+  }));
+}
+
+type ReminderDeliveryInput = {
+  deliveryKey: string;
+  chatId: string;
+  itemId?: string | null;
+  occurrenceDay: string;
+  occurrenceTime?: string | null;
+  reminderKind: 'timed_15m' | 'untimed_morning_digest';
+  scheduledFor: Date;
+};
+
+export async function reserveTelegramReminderDelivery(input: ReminderDeliveryInput) {
+  const [record] = await db
+    .insert(telegramReminderDeliveries)
+    .values({
+      deliveryKey: input.deliveryKey,
+      chatId: input.chatId,
+      itemId: input.itemId ?? null,
+      occurrenceDay: input.occurrenceDay,
+      occurrenceTime: input.occurrenceTime ?? null,
+      reminderKind: input.reminderKind,
+      scheduledFor: input.scheduledFor,
+    })
+    .onConflictDoNothing({ target: telegramReminderDeliveries.deliveryKey })
+    .returning();
+
+  return record ?? null;
+}
+
+export async function markTelegramReminderDeliverySent(deliveryKey: string) {
+  const [record] = await db
+    .update(telegramReminderDeliveries)
+    .set({ sentAt: new Date() })
+    .where(eq(telegramReminderDeliveries.deliveryKey, deliveryKey))
+    .returning();
+
+  return record ?? null;
+}
+
+export async function releaseTelegramReminderDelivery(deliveryKey: string) {
+  await db
+    .delete(telegramReminderDeliveries)
+    .where(and(eq(telegramReminderDeliveries.deliveryKey, deliveryKey), isNull(telegramReminderDeliveries.sentAt)));
 }
 
 export type ItemRecord = SelectItem;

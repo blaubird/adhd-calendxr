@@ -43,6 +43,13 @@
       "when": 1777300000000,
       "tag": "0005_telegram_user_settings",
       "breakpoints": false
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1777300300000,
+      "tag": "0006_telegram_reminders",
+      "breakpoints": false
     }
   ]
 }

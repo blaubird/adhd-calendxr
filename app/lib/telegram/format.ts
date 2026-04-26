@@ -45,6 +45,12 @@ function formatTelegramDate(date: Date, language: TelegramLanguage) {
   return format(date, 'd MMM', { locale: DATE_LOCALES[language] });
 }
 
+function formatReminderDayLabel(day: string, today: string, tomorrow: string, language: TelegramLanguage) {
+  if (day === today) return t(language).dayToday;
+  if (day === tomorrow) return t(language).dayTomorrow;
+  return formatTelegramDate(parseDayKey(day), language);
+}
+
 function formatDayTitle(header: string | TelegramDayHeader, language: TelegramLanguage) {
   if (typeof header === 'string') return `<b>${escapeTelegramHtml(header)}</b>`;
 
@@ -177,15 +183,44 @@ export function formatTelegramLanguageKeyboard() {
   };
 }
 
-export function formatTelegramSettings(language: TelegramLanguage) {
+export function formatTelegramSettings(language: TelegramLanguage, remindersEnabled = false) {
   const messages = t(language);
-  return `${messages.settingsTitle}\n\n${messages.settingsLanguage(TELEGRAM_LANGUAGE_LABELS[language])}`;
+  return `${messages.settingsTitle}\n\n${messages.settingsLanguage(TELEGRAM_LANGUAGE_LABELS[language])}\n${messages.settingsReminders(remindersEnabled)}`;
 }
 
-export function formatTelegramSettingsKeyboard(language: TelegramLanguage) {
+export function formatTelegramSettingsKeyboard(language: TelegramLanguage, remindersEnabled = false) {
   return {
     inline_keyboard: [
       [{ text: t(language).changeLanguage, callback_data: 'settings:language' }],
+      [{
+        text: remindersEnabled ? t(language).disableReminders : t(language).enableReminders,
+        callback_data: remindersEnabled ? 'settings:reminders:off' : 'settings:reminders:on',
+      }],
     ],
   };
+}
+
+export function formatTelegramTimedReminder(
+  item: Pick<Item, 'title' | 'day' | 'timeStart' | 'timeEnd'>,
+  language: TelegramLanguage,
+  today: string,
+  tomorrow: string
+) {
+  const messages = t(language);
+  const time = escapeTelegramHtml(formatTelegramTimeRange(item.timeStart, item.timeEnd) || messages.noTime);
+  const dayLabel = escapeTelegramHtml(formatReminderDayLabel(item.day, today, tomorrow, language));
+
+  return `<b>${escapeTelegramHtml(messages.reminderTitle)}</b>\n${escapeTelegramHtml(messages.reminderIn15Minutes)}\n\n${time}\n${escapeTelegramHtml(item.title)}\n\n${dayLabel} · ${escapeTelegramHtml(TIMEZONE)}`;
+}
+
+export function formatTelegramUntimedMorningDigest(
+  items: Array<Pick<Item, 'title'>>,
+  language: TelegramLanguage,
+  day: string
+) {
+  const messages = t(language);
+  const date = escapeTelegramHtml(formatTelegramDate(parseDayKey(day), language));
+  const titles = items.map((item) => escapeTelegramHtml(item.title)).join('\n');
+
+  return `<b>${escapeTelegramHtml(messages.morningDigest)}</b>\n${escapeTelegramHtml(messages.dayToday)} · ${date}\n\n<b>${escapeTelegramHtml(messages.untimedMorningTitle)}</b>\n${titles}`;
 }

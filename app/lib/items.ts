@@ -44,6 +44,8 @@ export function normalizeItemRecord(record: ItemRecord): Item {
       (record as any).occurrenceDay != null
         ? formatDayKey(new Date((record as any).occurrenceDay as Date))
         : null,
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt,
   };
 }
 
