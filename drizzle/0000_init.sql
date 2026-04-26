@@ -1,5 +1,14 @@
-CREATE TYPE "item_kind" AS ENUM('event', 'task');
-CREATE TYPE "task_status" AS ENUM('todo', 'done', 'canceled');
+DO $$ BEGIN
+  CREATE TYPE "item_kind" AS ENUM('event', 'task');
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+  CREATE TYPE "task_status" AS ENUM('todo', 'done', 'canceled');
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
 
 CREATE TABLE IF NOT EXISTS "users" (
   "id" serial PRIMARY KEY NOT NULL,
