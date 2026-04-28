@@ -2,7 +2,7 @@ import { TelegramClient } from './client';
 import { env } from 'app/env';
 import { detectTelegramIntent, generateDraftsFromText } from './ai';
 import { loadExpandedItems } from 'app/lib/load-items';
-import { formatDayKey, nowInTz, parseDayKey } from 'app/lib/datetime';
+import { formatDayKey, normalizeDayString, nowInTz, parseDayKey } from 'app/lib/datetime';
 import { addDays } from 'date-fns';
 import {
   cancelTelegramPendingDraft,
@@ -44,7 +44,7 @@ import {
   TELEGRAM_AI_COOLDOWN_MS,
   formatTelegramUnsupportedMessage,
   gateTelegramTextBeforeAi,
-  isLikelyCalendarQuery,
+  type TelegramIntent,
   validateTelegramQueryRange,
 } from './intent';
 
@@ -230,6 +230,179 @@ async function buildWeekList(chatId: string, userId: number, language: TelegramL
   metrics.dbQueryDurationMs = durationSince(dbStartedAt);
   const context = await buildAndSaveTelegramListContext(chatId, 'week', items);
   return formatTelegramNumberedRange(t(language).next7Days, rangeStart, rangeEnd, context, language);
+}
+
+async function sendUpcomingList(
+  client: TelegramClient,
+  chatId: string,
+  userId: number,
+  language: TelegramLanguage,
+  metrics: TelegramRouteMetrics
+) {
+  const now = nowInTz(new Date());
+  const today = formatDayKey(now);
+  const tomorrow = formatDayKey(addDays(now, 1));
+  const dbStartedAt = Date.now();
+  const items = await loadExpandedItems(userId, today, tomorrow);
+  metrics.dbQueryDurationMs = durationSince(dbStartedAt);
+  await timeTelegram(metrics, () => client.sendMessage(chatId, formatTelegramUpcoming(items, language, now), { parse_mode: 'HTML' }));
+}
+
+function clarificationText(language: TelegramLanguage, question: string | null | undefined) {
+  const messages = t(language);
+  return `${messages.clarificationNeeded}\n\n${question || messages.couldNotUnderstandDateTime}`;
+}
+
+function validateRouterDay(day: string | null | undefined) {
+  if (!day) return null;
+  const normalized = normalizeDayString(day);
+  return normalized === day ? normalized : null;
+}
+
+async function handleNaturalLanguageIntent(
+  intent: TelegramIntent,
+  originalText: string,
+  client: TelegramClient,
+  chatId: string,
+  userId: number,
+  language: TelegramLanguage,
+  metrics: TelegramRouteMetrics
+) {
+  const messages = t(language);
+
+  if (intent.intent === 'show_day') {
+    const day = validateRouterDay(intent.date);
+    if (!day) {
+      await timeTelegram(metrics, () => client.sendMessage(chatId, clarificationText(language, intent.clarificationQuestion), { parse_mode: 'HTML' }));
+      return;
+    }
+    await sendDayList(client, chatId, userId, day, language, metrics);
+    return;
+  }
+
+  if (intent.intent === 'show_upcoming') {
+    await sendUpcomingList(client, chatId, userId, language, metrics);
+    return;
+  }
+
+  if (intent.intent === 'show_week') {
+    if (!intent.dateRangeStart && !intent.dateRangeEnd) {
+      const weekText = await buildWeekList(chatId, userId, language, metrics);
+      await timeTelegram(metrics, () => client.sendMessage(chatId, weekText, { parse_mode: 'HTML' }));
+      return;
+    }
+
+    const range = validateTelegramQueryRange({
+      startDay: intent.dateRangeStart || '',
+      endDay: intent.dateRangeEnd || '',
+      label: messages.next7Days,
+    });
+    if (!range) {
+      await timeTelegram(metrics, () => client.sendMessage(chatId, clarificationText(language, intent.clarificationQuestion), { parse_mode: 'HTML' }));
+      return;
+    }
+
+    const dbStartedAt = Date.now();
+    const items = await loadExpandedItems(userId, range.startDay, range.endDay);
+    metrics.dbQueryDurationMs = durationSince(dbStartedAt);
+    await timeTelegram(metrics, () => client.sendMessage(chatId, formatTelegramRange(items, range.startDay, range.endDay, range.label, language), {
+      parse_mode: 'HTML',
+    }));
+    return;
+  }
+
+  if (intent.intent === 'create_draft') {
+    await sendDraftProposals(client, chatId, intent.draftInput || originalText, language, metrics);
+    return;
+  }
+
+  if (intent.intent === 'mark_done') {
+    if (!intent.itemNumber) {
+      await timeTelegram(metrics, () => client.sendMessage(chatId, clarificationText(language, intent.clarificationQuestion || 'Which listed item number should I mark done?'), { parse_mode: 'HTML' }));
+      return;
+    }
+
+    const resolved = await resolveTelegramItemRef(chatId, intent.itemNumber);
+    if (!resolved) {
+      await timeTelegram(metrics, () => client.sendMessage(chatId, messages.couldNotFindItem));
+      return;
+    }
+
+    const dbStartedAt = Date.now();
+    const result = await markTelegramRefDone(userId, resolved.ref);
+    metrics.dbQueryDurationMs = durationSince(dbStartedAt);
+    if (!result) {
+      await timeTelegram(metrics, () => client.sendMessage(chatId, messages.couldNotFindItem));
+      return;
+    }
+    const title = result.status === 'already_done' ? messages.alreadyDone : messages.doneTitle;
+    await timeTelegram(metrics, () => client.sendMessage(chatId, `${title}\n\n${formatTelegramRefPreview(resolved.ref)}`, { parse_mode: 'HTML' }));
+    return;
+  }
+
+  if (intent.intent === 'delete_item') {
+    if (!intent.itemNumber) {
+      await timeTelegram(metrics, () => client.sendMessage(chatId, clarificationText(language, intent.clarificationQuestion || 'Which listed item number should I delete?'), { parse_mode: 'HTML' }));
+      return;
+    }
+
+    const resolved = await resolveTelegramItemRef(chatId, intent.itemNumber);
+    if (!resolved) {
+      await timeTelegram(metrics, () => client.sendMessage(chatId, messages.couldNotFindItem));
+      return;
+    }
+
+    await timeTelegram(metrics, () => client.sendMessage(chatId, `${messages.deletePrompt}\n\n${formatTelegramRefPreview(resolved.ref)}`, {
+      parse_mode: 'HTML',
+      reply_markup: {
+        inline_keyboard: [[
+          { text: messages.confirmDelete, callback_data: `item_delete_confirm:${resolved.contextId}:${intent.itemNumber}` },
+          { text: messages.canceled, callback_data: 'item_delete_cancel' },
+        ]],
+      },
+    }));
+    return;
+  }
+
+  if (intent.intent === 'move_item') {
+    if (!intent.itemNumber || !intent.targetDate) {
+      await timeTelegram(metrics, () => client.sendMessage(chatId, clarificationText(language, intent.clarificationQuestion || 'Which listed item number should I move, and where?'), { parse_mode: 'HTML' }));
+      return;
+    }
+
+    const targetDay = validateRouterDay(intent.targetDate);
+    if (!targetDay) {
+      await timeTelegram(metrics, () => client.sendMessage(chatId, clarificationText(language, intent.clarificationQuestion), { parse_mode: 'HTML' }));
+      return;
+    }
+
+    const resolved = await resolveTelegramItemRef(chatId, intent.itemNumber);
+    if (!resolved) {
+      await timeTelegram(metrics, () => client.sendMessage(chatId, messages.couldNotFindItem));
+      return;
+    }
+
+    const dbStartedAt = Date.now();
+    const result = await moveTelegramRef(userId, resolved.ref, targetDay, intent.targetTimeStart);
+    metrics.dbQueryDurationMs = durationSince(dbStartedAt);
+    if (!result) {
+      await timeTelegram(metrics, () => client.sendMessage(chatId, messages.couldNotFindItem));
+      return;
+    }
+    if (result.status === 'unsupported_recurring') {
+      await timeTelegram(metrics, () => client.sendMessage(chatId, messages.recurringMoveUnsupported));
+      return;
+    }
+    await timeTelegram(metrics, () => client.sendMessage(chatId, `${messages.movedTitle}\n\n${formatTelegramRefPreview(result.ref)}`, { parse_mode: 'HTML' }));
+    return;
+  }
+
+  if (intent.intent === 'clarify') {
+    await timeTelegram(metrics, () => client.sendMessage(chatId, clarificationText(language, intent.clarificationQuestion), { parse_mode: 'HTML' }));
+    return;
+  }
+
+  await timeTelegram(metrics, () => client.sendMessage(chatId, formatTelegramUnsupportedMessage(language), { parse_mode: 'HTML' }));
 }
 
 export async function handleTelegramUpdate(update: any, client: TelegramClient, userId: number) {
@@ -801,46 +974,15 @@ export async function handleTelegramUpdate(update: any, client: TelegramClient, 
     }
     aiCooldownByChat.set(chatId, nowMs);
 
-    // Query-like text -> AI intent router. Other safe text -> direct draft generation.
+    // Safe freeform text -> AI intent router. Backend still performs all actions.
     try {
-      if (!isLikelyCalendarQuery(gated.text)) {
-        await sendDraftProposals(client, chatId, gated.text, language, metrics);
-        logTelegramTiming('draft_direct', startedAt, metrics);
-        return;
-      }
-
       metrics.usedAiRouter = true;
       const routerStartedAt = Date.now();
       const intent = await detectTelegramIntent(gated.text);
       metrics.aiRouterDurationMs = durationSince(routerStartedAt);
 
-      if (intent.intent === 'calendar_query') {
-        const range = validateTelegramQueryRange(intent.query);
-        if (!range) {
-          await timeTelegram(metrics, () => client.sendMessage(chatId, formatTelegramUnsupportedMessage(language), { parse_mode: 'HTML' }));
-          logTelegramTiming('calendar_query_router', startedAt, metrics);
-          return;
-        }
-
-        const dbStartedAt = Date.now();
-        const items = await loadExpandedItems(userId, range.startDay, range.endDay);
-        metrics.dbQueryDurationMs = durationSince(dbStartedAt);
-        const label = range.rangeDays === 1 ? range.label : range.label || `Next ${range.rangeDays} days`;
-        await timeTelegram(metrics, () => client.sendMessage(chatId, formatTelegramRange(items, range.startDay, range.endDay, label, language), {
-          parse_mode: 'HTML',
-        }));
-        logTelegramTiming('calendar_query_router', startedAt, metrics);
-        return;
-      }
-
-      if (intent.intent === 'draft_create') {
-        await sendDraftProposals(client, chatId, intent.draftInput, language, metrics);
-        logTelegramTiming('calendar_query_router', startedAt, metrics);
-        return;
-      }
-
-      await timeTelegram(metrics, () => client.sendMessage(chatId, formatTelegramUnsupportedMessage(language), { parse_mode: 'HTML' }));
-      logTelegramTiming('calendar_query_router', startedAt, metrics);
+      await handleNaturalLanguageIntent(intent, gated.text, client, chatId, userId, language, metrics);
+      logTelegramTiming('ai_intent_router', startedAt, metrics);
     } catch (err: any) {
       console.error('[Telegram Handler] AI error', err);
       await timeTelegram(metrics, () => client.sendMessage(chatId, messages.requestFailed(err.message)));

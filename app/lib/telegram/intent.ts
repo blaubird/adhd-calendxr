@@ -7,26 +7,93 @@ export const TELEGRAM_MAX_AI_TEXT_LENGTH = 1000;
 export const TELEGRAM_MAX_QUERY_RANGE_DAYS = 30;
 export const TELEGRAM_AI_COOLDOWN_MS = 2500;
 
+export type TelegramIntentConfidence = 'high' | 'medium' | 'low';
+
 export type TelegramIntent =
   | {
-      intent: 'calendar_query';
-      confidence: number;
-      query: TelegramQueryRange;
-      draftInput: null;
+      intent: 'show_day';
+      date: string;
+      dateRangeStart: null;
+      dateRangeEnd: null;
+      timeStart: string | null;
+      timeEnd: string | null;
+      title: null;
+      itemNumber: null;
+      itemTextHint: string | null;
+      targetDate: null;
+      targetTimeStart: null;
+      targetTimeEnd: null;
+      confidence: TelegramIntentConfidence;
+      clarificationQuestion: string | null;
       reason?: string | null;
     }
   | {
-      intent: 'draft_create';
-      confidence: number;
-      query: null;
+      intent: 'show_week' | 'show_upcoming';
+      date: null;
+      dateRangeStart: string | null;
+      dateRangeEnd: string | null;
+      timeStart: null;
+      timeEnd: null;
+      title: null;
+      itemNumber: null;
+      itemTextHint: string | null;
+      targetDate: null;
+      targetTimeStart: null;
+      targetTimeEnd: null;
+      confidence: TelegramIntentConfidence;
+      clarificationQuestion: string | null;
+      reason?: string | null;
+    }
+  | {
+      intent: 'create_draft';
+      date: string | null;
+      dateRangeStart: null;
+      dateRangeEnd: null;
+      timeStart: string | null;
+      timeEnd: string | null;
+      title: string | null;
+      itemNumber: null;
+      itemTextHint: string | null;
+      targetDate: null;
+      targetTimeStart: null;
+      targetTimeEnd: null;
+      confidence: TelegramIntentConfidence;
+      clarificationQuestion: string | null;
       draftInput: string;
       reason?: string | null;
     }
   | {
-      intent: 'unsupported';
-      confidence: number;
-      query: null;
-      draftInput: null;
+      intent: 'mark_done' | 'delete_item' | 'move_item';
+      date: string | null;
+      dateRangeStart: null;
+      dateRangeEnd: null;
+      timeStart: string | null;
+      timeEnd: string | null;
+      title: string | null;
+      itemNumber: number | null;
+      itemTextHint: string | null;
+      targetDate: string | null;
+      targetTimeStart: string | null;
+      targetTimeEnd: string | null;
+      confidence: TelegramIntentConfidence;
+      clarificationQuestion: string | null;
+      reason?: string | null;
+    }
+  | {
+      intent: 'clarify' | 'unsupported';
+      date: null;
+      dateRangeStart: null;
+      dateRangeEnd: null;
+      timeStart: null;
+      timeEnd: null;
+      title: string | null;
+      itemNumber: number | null;
+      itemTextHint: string | null;
+      targetDate: null;
+      targetTimeStart: null;
+      targetTimeEnd: null;
+      confidence: TelegramIntentConfidence;
+      clarificationQuestion: string | null;
       reason?: string | null;
     };
 
@@ -119,27 +186,6 @@ const CALENDAR_RELEVANCE_PATTERNS = [
   /\bmeeting\b|\bappointment\b|\bbuy\b|\bdo\b|\bcall\b|\bsend\b/i,
 ];
 
-const CALENDAR_QUERY_PATTERNS = [
-  /что\s+(там\s+)?у\s+меня/i,
-  /покажи(\s+календар[ьяеь])?/i,
-  /какие\s+(дела|события)/i,
-  /что\s+запланировано/i,
-  /что\s+стоит/i,
-  /есть\s+ли/i,
-  /когда\s+у\s+меня/i,
-  /what\s+do\s+i\s+have/i,
-  /show\s+me/i,
-  /what(?:'s|\s+is)\s+scheduled/i,
-  /do\s+i\s+have/i,
-  /when\s+is/i,
-];
-
-export function isLikelyCalendarQuery(text: string) {
-  const normalized = text.trim();
-  if (!normalized) return false;
-  return CALENDAR_QUERY_PATTERNS.some((pattern) => pattern.test(normalized));
-}
-
 export function gateTelegramTextBeforeAi(rawText: string, language: TelegramLanguage = 'en'): TelegramTextGateResult {
   const text = rawText.trim();
   if (!text) return { allowed: false, reason: 'empty', message: '' };
@@ -156,7 +202,7 @@ export function gateTelegramTextBeforeAi(rawText: string, language: TelegramLang
   if (UNRELATED_PATTERNS.some((pattern) => pattern.test(text))) {
     return { allowed: false, reason: 'unrelated', message: t(language).unsupported };
   }
-  if (!CALENDAR_RELEVANCE_PATTERNS.some((pattern) => pattern.test(text))) {
+  if (text.length > 80 && !CALENDAR_RELEVANCE_PATTERNS.some((pattern) => pattern.test(text))) {
     return { allowed: false, reason: 'unrelated', message: t(language).unsupported };
   }
   return { allowed: true, text };
