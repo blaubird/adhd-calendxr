@@ -64,6 +64,8 @@ function normalizeItemPayload(payload: ItemInput): ItemWritePayload {
     timeEnd: payload.timeEnd ?? null,
     details: payload.details ?? null,
     status: payload.status ?? null,
+    planningPeriod: payload.timeStart ? null : payload.planningPeriod ?? null,
+    planningOrder: payload.timeStart ? null : payload.planningOrder ?? null,
     recurrenceRule: payload.recurrenceRule ?? null,
     recurrenceTz: payload.recurrenceTz ?? undefined,
     recurrenceUntilDay: payload.recurrenceUntilDay ?? null,

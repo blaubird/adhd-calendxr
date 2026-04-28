@@ -21,6 +21,8 @@ export function normalizeItemRecord(record: ItemRecord): Item {
     title: record.title,
     details: record.details ?? null,
     status: record.status ?? null,
+    planningPeriod: (record as any).planningPeriod ?? null,
+    planningOrder: (record as any).planningOrder ?? null,
     color: (record as any).color ?? null,
     order: (record as any).order ?? 0,
     recurrenceRule: (record as any).recurrenceRule ?? null,

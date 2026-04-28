@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Draft, Item } from 'app/types';
-import { formatDateFull, parseDayKey, formatDayEU, formatTimeRange } from 'app/lib/datetime';
+import { formatDateFull, parseDayKey, formatDayEU, formatTimeRange, formatTimeValue } from 'app/lib/datetime';
 
 import { useMonthCalendar } from './hooks/use-month-calendar';
 import { useAgentChat } from './hooks/use-agent-chat';
@@ -12,6 +12,78 @@ import { Sidebar } from './components/sidebar';
 import { MonthGrid } from './components/month-grid';
 import { DayPanel } from './components/day-panel';
 import { EditModal } from './components/edit-modal';
+
+type UndoToast = {
+  message: string;
+  onUndo: () => Promise<void>;
+};
+
+function isTypingTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName.toLowerCase();
+  return tag === 'input' || tag === 'textarea' || tag === 'select' || target.isContentEditable;
+}
+
+function SearchOverlay({
+  open,
+  query,
+  results,
+  onQueryChange,
+  onClose,
+  onPick,
+}: {
+  open: boolean;
+  query: string;
+  results: Item[];
+  onQueryChange: (value: string) => void;
+  onClose: () => void;
+  onPick: (item: Item) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const id = window.setTimeout(() => inputRef.current?.focus(), 20);
+    return () => window.clearTimeout(id);
+  }, [open]);
+
+  if (!open) return null;
+
+  return (
+    <div className="search-overlay" role="dialog" aria-modal="true">
+      <div className="search-panel">
+        <div className="search-input-row">
+          <input
+            ref={inputRef}
+            className="search-input"
+            placeholder="Search title"
+            value={query}
+            onChange={(event) => onQueryChange(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') onClose();
+            }}
+          />
+          <button className="search-close-btn" onClick={onClose} type="button">Close</button>
+        </div>
+        <div className="search-results">
+          {!query.trim() && <p className="search-empty">Type to search titles.</p>}
+          {query.trim() && results.length === 0 && <p className="search-empty">No matching items.</p>}
+          {results.map((item) => (
+            <button key={String(item.id)} className="search-result-row" onClick={() => onPick(item)} type="button">
+              <span className="search-result-title">{item.title}</span>
+              <span className="search-result-meta">
+                {formatDayEU(item.occurrenceDay ?? item.day)}
+                {item.timeStart ? ` · ${formatTimeValue(item.timeStart)}` : ''}
+                {' · '}
+                {item.timeStart ? 'Event' : 'Task'}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function CalendarShell({
   initialItems,
@@ -54,6 +126,38 @@ export default function CalendarShell({
   const [editing, setEditing] = useState<ItemFormState | null>(null);
   const [editingDraftIndex, setEditingDraftIndex] = useState<number | null>(null);
   const [confirmingDraft, setConfirmingDraft] = useState<number | null>(null);
+  const [undoToast, setUndoToast] = useState<UndoToast | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [highlightedItemId, setHighlightedItemId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (isTypingTarget(event.target)) return;
+      if (event.key === '/' || (event.ctrlKey && event.key.toLowerCase() === 'k')) {
+        event.preventDefault();
+        setSearchOpen(true);
+      }
+      if (event.key === 'Escape') {
+        setSearchOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  const searchResults = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return [];
+    return cal.items
+      .filter((item) => item.title.toLowerCase().includes(q))
+      .sort((a, b) => {
+        const dayCompare = (a.occurrenceDay ?? a.day).localeCompare(b.occurrenceDay ?? b.day);
+        if (dayCompare !== 0) return dayCompare;
+        return (a.timeStart || '').localeCompare(b.timeStart || '');
+      })
+      .slice(0, 20);
+  }, [cal.items, searchQuery]);
 
   // ── Item → FormState converters ──
 
@@ -64,6 +168,8 @@ export default function CalendarShell({
     day: item.occurrenceDay ?? item.day,
     details: item.details ?? null,
     status: item.status ?? 'todo',
+    planningPeriod: item.planningPeriod ?? null,
+    planningOrder: item.planningOrder ?? null,
     color: item.color ?? null,
     order: item.order ?? 0,
     recurrenceRule: item.recurrenceRule ?? null,
@@ -91,7 +197,97 @@ export default function CalendarShell({
     recurrenceRule: d.recurrenceRule ?? null,
     recurrenceUntilDay: d.recurrenceUntilDay ?? null,
     recurrenceCount: d.recurrenceCount ?? null,
+    planningPeriod: null,
+    planningOrder: null,
   });
+
+  function showUndo(message: string, onUndo: () => Promise<void>) {
+    setUndoToast({ message, onUndo });
+  }
+
+  async function runUndo() {
+    const current = undoToast;
+    if (!current) return;
+    setUndoToast(null);
+    await current.onUndo();
+  }
+
+  async function restoreItemSnapshot(item: Item) {
+    const values = {
+      ...toFormState(item),
+      id: undefined,
+      sourceId: undefined,
+      isOccurrence: false,
+      isOverride: false,
+      parentId: null,
+      occurrenceDay: null,
+    };
+    await cal.saveItem(values);
+  }
+
+  async function updateItemInline(item: Item, patch: Partial<Item>) {
+    const nextTimeStart = Object.prototype.hasOwnProperty.call(patch, 'timeStart')
+      ? patch.timeStart ?? null
+      : item.timeStart;
+    const next = {
+      ...toFormState(item),
+      kind: nextTimeStart ? 'event' as const : 'task' as const,
+      planningPeriod: nextTimeStart ? null : patch.planningPeriod ?? item.planningPeriod ?? null,
+      planningOrder: nextTimeStart ? null : patch.planningOrder ?? item.planningOrder ?? null,
+    };
+    if (patch.title !== undefined) next.title = patch.title;
+    if (Object.prototype.hasOwnProperty.call(patch, 'timeStart')) next.timeStart = patch.timeStart ?? null;
+    if (Object.prototype.hasOwnProperty.call(patch, 'timeEnd')) next.timeEnd = patch.timeEnd ?? null;
+    return cal.saveItem(next);
+  }
+
+  async function deleteWithUndo(item: Item) {
+    const success = await cal.removeItem(item);
+    if (success && typeof item.id === 'number' && !item.isOccurrence) {
+      showUndo('Deleted', () => restoreItemSnapshot(item));
+    }
+  }
+
+  async function moveWithUndo(item: Item, values: { day: string; timeStart: string | null; timeEnd: string | null }) {
+    const previous = toFormState(item);
+    const success = await cal.saveItem({
+      ...previous,
+      day: values.day,
+      timeStart: values.timeStart,
+      timeEnd: values.timeEnd,
+      kind: values.timeStart ? 'event' : 'task',
+      planningPeriod: values.timeStart ? null : previous.planningPeriod,
+      planningOrder: values.timeStart ? null : previous.planningOrder,
+    });
+    if (success && typeof item.id === 'number' && !item.isOccurrence) {
+      showUndo('Moved', async () => {
+        await cal.saveItem(previous);
+      });
+    }
+  }
+
+  async function toggleDoneWithUndo(item: Item) {
+    const previous = toFormState(item);
+    const success = await cal.markStatus(item, item.status === 'done' ? 'todo' : 'done');
+    if (success && typeof item.id === 'number' && !item.isOccurrence) {
+      showUndo('Updated', async () => {
+        await cal.saveItem(previous);
+      });
+    }
+  }
+
+  async function planItemsWithUndo(nextItems: Item[]) {
+    const previous = nextItems
+      .map((item) => cal.items.find((candidate) => String(candidate.id) === String(item.id)))
+      .filter((item): item is Item => Boolean(item));
+    const success = await cal.saveItemsOrder(nextItems);
+    if (success && previous.length) {
+      showUndo('Moved', async () => {
+        await cal.saveItemsOrder(previous);
+      });
+    }
+    return success;
+  }
 
   function openNew(day: string) {
     setEditingDraftIndex(null);
@@ -258,24 +454,41 @@ export default function CalendarShell({
           setEditingDraftIndex(null);
           setEditing(toFormState(item));
         }}
-        onDelete={(item) => cal.removeItem(item)}
+        onDelete={deleteWithUndo}
         onDeleteSeries={(item) => cal.removeSeriesItem(item)}
-        onMove={async (item, values) => {
-          await cal.saveItem({
-            ...toFormState(item),
-            day: values.day,
-            timeStart: values.timeStart,
-            timeEnd: values.timeEnd,
-          });
-        }}
-        onToggleDone={(item) =>
-          cal.markStatus(item, item.status === 'done' ? 'todo' : 'done')
-        }
-        onReorderUntimed={(newOrder) => cal.saveItemsOrder(newOrder)}
+        onMove={moveWithUndo}
+        onToggleDone={toggleDoneWithUndo}
+        onInlineUpdate={updateItemInline}
+        onPlanItems={planItemsWithUndo}
         onAddNew={openNew}
+        onOpenSearch={() => setSearchOpen(true)}
         onOpenDayCanvas={onOpenDayCanvas}
+        highlightedItemId={highlightedItemId}
         chatSection={chatSection}
       />
+
+      <SearchOverlay
+        open={searchOpen}
+        query={searchQuery}
+        results={searchResults}
+        onQueryChange={setSearchQuery}
+        onClose={() => setSearchOpen(false)}
+        onPick={(item) => {
+          const day = item.occurrenceDay ?? item.day;
+          cal.selectDay(day);
+          setHighlightedItemId(String(item.id));
+          setSearchOpen(false);
+          setSearchQuery('');
+          window.setTimeout(() => setHighlightedItemId(null), 2200);
+        }}
+      />
+
+      {undoToast && (
+        <div className="calendar-toast">
+          <span>{undoToast.message}</span>
+          <button onClick={runUndo} type="button">Undo</button>
+        </div>
+      )}
 
       {editing && (
         <EditModal
