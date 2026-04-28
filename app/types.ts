@@ -1,5 +1,6 @@
 export type ItemKind = 'event' | 'task';
 export type TaskStatus = 'todo' | 'done' | 'canceled' | null;
+export type PlanningPeriod = 'morning' | 'day' | 'evening';
 
 export type ItemId = number | string;
 
@@ -13,6 +14,8 @@ export type Item = {
   title: string;
   details: string | null;
   status: TaskStatus;
+  planningPeriod?: PlanningPeriod | null;
+  planningOrder?: number | null;
   color?: string | null;
   order?: number | null;
   recurrenceRule?: string | null;

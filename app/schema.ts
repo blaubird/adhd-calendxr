@@ -18,6 +18,7 @@ import { sql } from 'drizzle-orm';
 
 export const itemKind = pgEnum('item_kind', ['event', 'task']);
 export const taskStatus = pgEnum('task_status', ['todo', 'done', 'canceled']);
+export const planningPeriod = pgEnum('planning_period', ['morning', 'day', 'evening']);
 
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),
@@ -42,6 +43,8 @@ export const items = pgTable(
     title: varchar('title', { length: 255 }).notNull(),
     details: text('details'),
     status: taskStatus('status'),
+    planningPeriod: planningPeriod('planning_period'),
+    planningOrder: integer('planning_order'),
     recurrenceRule: text('recurrence_rule'),
     recurrenceTz: text('recurrence_tz').notNull().default('Europe/Paris'),
     recurrenceUntilDay: date('recurrence_until_day'),

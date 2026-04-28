@@ -57,6 +57,13 @@
       "when": 1777300600000,
       "tag": "0007_telegram_item_contexts",
       "breakpoints": false
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1777393200000,
+      "tag": "0008_item_soft_planning",
+      "breakpoints": false
     }
   ]
 }

@@ -208,6 +208,8 @@ export function useMonthCalendar(initialItems: Item[], initialMonth: string) {
       title: values.title,
       details: values.details ?? null,
       status: values.status ?? 'todo',
+      planningPeriod: timeStart ? null : values.planningPeriod ?? null,
+      planningOrder: timeStart ? null : values.planningOrder ?? null,
       color: values.color,
       order: values.order,
       recurrenceRule: values.recurrenceRule,
@@ -255,7 +257,7 @@ export function useMonthCalendar(initialItems: Item[], initialMonth: string) {
     return true;
   }
 
-  async function saveItemsOrder(orderedItems: Item[]) {
+  async function saveItemsOrder(orderedItems: Item[]): Promise<boolean> {
     // Sequentially update orders without triggering fetch loop
     for (const item of orderedItems) {
       if (typeof item.id !== 'number' || item.isOccurrence) continue; // Skip occurrences
@@ -267,6 +269,8 @@ export function useMonthCalendar(initialItems: Item[], initialMonth: string) {
         title: item.title,
         details: item.details ?? null,
         status: item.status ?? 'todo',
+        planningPeriod: item.timeStart ? null : item.planningPeriod ?? null,
+        planningOrder: item.timeStart ? null : item.planningOrder ?? null,
         color: item.color ?? null,
         order: item.order ?? 0,
         recurrenceRule: item.recurrenceRule ?? null,
@@ -277,13 +281,18 @@ export function useMonthCalendar(initialItems: Item[], initialMonth: string) {
         parentId: item.parentId ?? null,
         occurrenceDay: item.occurrenceDay ?? null,
       };
-      await fetch(`/api/items/${item.id}`, {
+      const res = await fetch(`/api/items/${item.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
+      if (!res.ok) {
+        setError('Unable to save item order');
+        return false;
+      }
     }
     await fetchItems();
+    return true;
   }
 
   async function saveSeriesItem(masterId: number, values: ItemFormState): Promise<boolean> {
@@ -309,7 +318,7 @@ export function useMonthCalendar(initialItems: Item[], initialMonth: string) {
     return true;
   }
 
-  async function removeItem(item: Item) {
+  async function removeItem(item: Item): Promise<boolean> {
     setError(null);
     if (item.isOccurrence && item.sourceId) {
       const res = await fetch(`/api/items/${item.sourceId}/exdates`, {
@@ -319,40 +328,42 @@ export function useMonthCalendar(initialItems: Item[], initialMonth: string) {
       });
       if (!res.ok) {
         setError('Unable to delete occurrence');
-        return;
+        return false;
       }
       if (item.isOverride && typeof item.id === 'number') {
         await fetch(`/api/items/${item.id}`, { method: 'DELETE' });
       }
       await fetchItems();
-      return;
+      return true;
     }
 
-    if (typeof item.id !== 'number') return;
+    if (typeof item.id !== 'number') return false;
     const res = await fetch(`/api/items/${item.id}`, { method: 'DELETE' });
     if (!res.ok) {
       setError('Unable to delete item');
-      return;
+      return false;
     }
     await fetchItems();
+    return true;
   }
 
   /** Delete the entire recurring series by deleting the master item (cascade). */
-  async function removeSeriesItem(item: Item) {
+  async function removeSeriesItem(item: Item): Promise<boolean> {
     setError(null);
     // For an occurrence, sourceId is the master's ID
     const masterId = item.sourceId ?? (typeof item.id === 'number' ? item.id : null);
-    if (!masterId) return;
+    if (!masterId) return false;
 
     const res = await fetch(`/api/items/${masterId}`, { method: 'DELETE' });
     if (!res.ok) {
       setError('Unable to delete series');
-      return;
+      return false;
     }
     await fetchItems();
+    return true;
   }
 
-  async function markStatus(item: Item, status: TaskStatus) {
+  async function markStatus(item: Item, status: TaskStatus): Promise<boolean> {
     const formState: ItemFormState = {
       ...emptyForm,
       ...item,
@@ -360,6 +371,8 @@ export function useMonthCalendar(initialItems: Item[], initialMonth: string) {
       day: item.occurrenceDay ?? item.day,
       details: item.details ?? null,
       status: status,
+      planningPeriod: item.planningPeriod ?? null,
+      planningOrder: item.planningOrder ?? null,
       color: item.color ?? null,
       order: item.order ?? 0,
       recurrenceRule: item.recurrenceRule ?? null,
@@ -372,7 +385,7 @@ export function useMonthCalendar(initialItems: Item[], initialMonth: string) {
       isOccurrence: item.isOccurrence,
       isOverride: item.isOverride,
     };
-    await saveItem(formState);
+    return saveItem(formState);
   }
 
   return {
@@ -385,6 +398,7 @@ export function useMonthCalendar(initialItems: Item[], initialMonth: string) {
     dayKey,
     grouped,
     selectedDay,
+    items,
     selectedDayItems,
     loading,
     error,

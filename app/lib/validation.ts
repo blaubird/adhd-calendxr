@@ -9,6 +9,8 @@ export const itemInputSchema = z
     title: z.string().min(1).max(255),
     details: z.string().optional().nullable(),
     status: z.enum(['todo', 'done', 'canceled']).optional().nullable(),
+    planningPeriod: z.enum(['morning', 'day', 'evening']).optional().nullable(),
+    planningOrder: z.number().int().optional().nullable(),
     recurrenceRule: z.string().optional().nullable(),
     recurrenceTz: z.string().optional(),
     recurrenceUntilDay: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),

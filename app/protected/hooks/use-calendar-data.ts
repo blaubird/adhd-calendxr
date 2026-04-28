@@ -20,6 +20,8 @@ export type ItemFormState = {
   title: string;
   details: string | null;
   status: TaskStatus;
+  planningPeriod: Item['planningPeriod'];
+  planningOrder: number | null;
   color: string | null;
   order: number;
   recurrenceRule: string | null;
@@ -41,6 +43,8 @@ export const emptyForm: ItemFormState = {
   title: '',
   details: null,
   status: 'todo',
+  planningPeriod: null,
+  planningOrder: null,
   color: null,
   order: 0,
   recurrenceRule: null,
@@ -166,6 +170,8 @@ export function useCalendarData(initialItems: Item[], initialStart: string) {
       title: values.title,
       details: values.details ?? null,
       status: values.status ?? 'todo',
+      planningPeriod: timeStart ? null : values.planningPeriod ?? null,
+      planningOrder: timeStart ? null : values.planningOrder ?? null,
       color: values.color,
       order: values.order,
       recurrenceRule: values.recurrenceRule,
@@ -266,6 +272,8 @@ export function useCalendarData(initialItems: Item[], initialStart: string) {
       day: item.occurrenceDay ?? item.day,
       details: item.details ?? null,
       status: status, // the new status
+      planningPeriod: item.planningPeriod ?? null,
+      planningOrder: item.planningOrder ?? null,
       color: item.color ?? null,
       order: item.order ?? 0,
       recurrenceRule: item.recurrenceRule ?? null,

@@ -69,6 +69,8 @@ export default function WeekBoard({
     day: item.occurrenceDay ?? item.day,
     details: item.details ?? null,
     status: item.status ?? 'todo',
+    planningPeriod: item.planningPeriod ?? null,
+    planningOrder: item.planningOrder ?? null,
     color: item.color ?? null,
     order: item.order ?? 0,
     recurrenceRule: item.recurrenceRule ?? null,
