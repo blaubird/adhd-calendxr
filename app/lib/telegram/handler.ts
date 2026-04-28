@@ -27,17 +27,22 @@ import {
   deleteTelegramRef,
   formatTelegramDayList,
   formatTelegramDayListKeyboard,
+  formatTelegramCancelKeyboard,
   formatTelegramItemPickerKeyboard,
   formatTelegramMoveDestinationKeyboard,
   formatTelegramNumberedRange,
+  formatTelegramPendingChoiceKeyboard,
   formatTelegramRefPreview,
   formatTelegramUpcoming,
   getTelegramListContext,
+  matchTelegramRefsByText,
   markTelegramRefDone,
   moveTelegramRef,
   parseTelegramDayArgs,
   parseTelegramMoveArgs,
   resolveTelegramItemRef,
+  type TelegramItemRef,
+  type TelegramManagementAction,
 } from './manage';
 import { isTelegramLanguage, t, type TelegramLanguage } from './i18n';
 import {
@@ -49,6 +54,18 @@ import {
 } from './intent';
 
 const aiCooldownByChat = new Map<string, number>();
+
+type PendingTelegramAction = {
+  type: TelegramManagementAction;
+  contextId: string | null;
+  targetDate?: string | null;
+  targetTimeStart?: string | null;
+  targetTimeEnd?: string | null;
+  createdAt: number;
+};
+
+const pendingActionByChat = new Map<string, PendingTelegramAction>();
+const PENDING_ACTION_TTL_MS = 10 * 60 * 1000;
 
 type TelegramRouteMetrics = {
   telegramDurationMs: number;
@@ -100,6 +117,42 @@ function parseItemNumber(value: string | undefined) {
   if (!value || !/^\d+$/.test(value)) return null;
   const parsed = Number(value);
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function getPendingAction(chatId: string) {
+  const pending = pendingActionByChat.get(chatId);
+  if (!pending) return null;
+  if (Date.now() - pending.createdAt > PENDING_ACTION_TTL_MS) {
+    pendingActionByChat.delete(chatId);
+    return null;
+  }
+  return pending;
+}
+
+function setPendingAction(chatId: string, pending: Omit<PendingTelegramAction, 'createdAt'>) {
+  pendingActionByChat.set(chatId, { ...pending, createdAt: Date.now() });
+}
+
+function clearPendingAction(chatId: string) {
+  pendingActionByChat.delete(chatId);
+}
+
+function safeErrorMeta(err: any) {
+  return {
+    errorName: err?.name,
+    errorMessage: err?.message,
+    causeName: err?.cause?.name,
+    causeMessage: err?.cause?.message,
+  };
+}
+
+async function trySendGracefulError(client: TelegramClient, chatId: string, language: TelegramLanguage, metrics: TelegramRouteMetrics) {
+  const messages = t(language);
+  try {
+    await timeTelegram(metrics, () => client.sendMessage(chatId, messages.requestFailed('Please try again.')));
+  } catch (err: any) {
+    console.error('[Telegram Handler] Failed to send graceful error', safeErrorMeta(err));
+  }
 }
 
 async function sendLanguagePicker(client: TelegramClient, chatId: string, language: TelegramLanguage, metrics: TelegramRouteMetrics) {
@@ -259,6 +312,133 @@ function validateRouterDay(day: string | null | undefined) {
   return normalized === day ? normalized : null;
 }
 
+function actionQuestion(action: TelegramManagementAction, language: TelegramLanguage) {
+  const messages = t(language);
+  if (action === 'done') return messages.whichItemDone;
+  if (action === 'delete') return messages.whichItemDelete;
+  return messages.whichItemMove;
+}
+
+function actionLogName(action: TelegramManagementAction) {
+  return action === 'done' ? 'mark_done' : action;
+}
+
+function actionableHint(intent: TelegramIntent, originalText: string) {
+  if (intent.intent !== 'mark_done' && intent.intent !== 'delete_item' && intent.intent !== 'move_item') {
+    return originalText;
+  }
+  return intent.itemTextHint || intent.title || originalText;
+}
+
+async function latestOrTodayContext(
+  chatId: string,
+  userId: number,
+  originalText: string,
+  metrics: TelegramRouteMetrics
+) {
+  const latest = await getTelegramListContext(chatId);
+  if (latest) return latest;
+
+  const todayWords = /\b(today|сегодня|сьогодні|aujourd'hui|aujourdhui)\b/i.test(originalText);
+  if (!todayWords) return null;
+
+  const today = formatDayKey(nowInTz(new Date()));
+  const dbStartedAt = Date.now();
+  const items = await loadExpandedItems(userId, today, today);
+  metrics.dbQueryDurationMs = durationSince(dbStartedAt);
+  return buildAndSaveTelegramListContext(chatId, `day:${today}`, items);
+}
+
+async function executeManagementAction(
+  action: TelegramManagementAction,
+  ref: TelegramItemRef,
+  contextId: string | null,
+  options: { targetDate?: string | null; targetTimeStart?: string | null },
+  client: TelegramClient,
+  chatId: string,
+  userId: number,
+  language: TelegramLanguage,
+  metrics: TelegramRouteMetrics
+) {
+  const messages = t(language);
+
+  if (action === 'done') {
+    const dbStartedAt = Date.now();
+    const result = await markTelegramRefDone(userId, ref);
+    metrics.dbQueryDurationMs = durationSince(dbStartedAt);
+    if (!result) {
+      await timeTelegram(metrics, () => client.sendMessage(chatId, messages.couldNotFindMatchedItem));
+      return;
+    }
+    const title = result.status === 'already_done' ? messages.alreadyDone : messages.doneTitle;
+    await timeTelegram(metrics, () => client.sendMessage(chatId, `${title}\n\n${formatTelegramRefPreview(ref)}`, { parse_mode: 'HTML' }));
+    return;
+  }
+
+  if (action === 'delete') {
+    await timeTelegram(metrics, () => client.sendMessage(chatId, `${messages.deletePrompt}\n\n${formatTelegramRefPreview(ref)}`, {
+      parse_mode: 'HTML',
+      reply_markup: {
+        inline_keyboard: [[
+          { text: messages.confirmDelete, callback_data: `item_delete_confirm:${contextId || ''}:${ref.n}` },
+          { text: messages.canceled, callback_data: 'item_delete_cancel' },
+        ]],
+      },
+    }));
+    return;
+  }
+
+  const targetDay = validateRouterDay(options.targetDate);
+  if (!targetDay) {
+    await timeTelegram(metrics, () => client.sendMessage(chatId, clarificationText(language, messages.whichItemMove), {
+      parse_mode: 'HTML',
+      reply_markup: formatTelegramCancelKeyboard(language),
+    }));
+    return;
+  }
+
+  const dbStartedAt = Date.now();
+  const result = await moveTelegramRef(userId, ref, targetDay, options.targetTimeStart ?? null);
+  metrics.dbQueryDurationMs = durationSince(dbStartedAt);
+  if (!result) {
+    await timeTelegram(metrics, () => client.sendMessage(chatId, messages.couldNotFindMatchedItem));
+    return;
+  }
+  if (result.status === 'unsupported_recurring') {
+    await timeTelegram(metrics, () => client.sendMessage(chatId, messages.recurringMoveUnsupported));
+    return;
+  }
+  await timeTelegram(metrics, () => client.sendMessage(chatId, `${messages.movedTitle}\n\n${formatTelegramRefPreview(result.ref)}`, { parse_mode: 'HTML' }));
+}
+
+async function askForMatchedItemChoice(
+  action: TelegramManagementAction,
+  contextId: string | null,
+  refs: TelegramItemRef[],
+  client: TelegramClient,
+  chatId: string,
+  language: TelegramLanguage,
+  metrics: TelegramRouteMetrics,
+  options: { targetDate?: string | null; targetTimeStart?: string | null } = {}
+) {
+  const messages = t(language);
+  setPendingAction(chatId, {
+    type: action,
+    contextId,
+    targetDate: options.targetDate ?? null,
+    targetTimeStart: options.targetTimeStart ?? null,
+    targetTimeEnd: null,
+  });
+  const heading = refs.length > 1
+    ? `${messages.multipleMatches}\n\n${actionQuestion(action, language)}`
+    : actionQuestion(action, language);
+  const lines = refs.map((ref) => formatTelegramRefPreview({ ...ref, title: `${ref.n}. ${ref.title}` })).join('\n\n');
+  await timeTelegram(metrics, () => client.sendMessage(chatId, `${heading}\n\n${lines}`, {
+    parse_mode: 'HTML',
+    reply_markup: formatTelegramPendingChoiceKeyboard(refs, language),
+  }));
+}
+
 async function handleNaturalLanguageIntent(
   intent: TelegramIntent,
   originalText: string,
@@ -317,56 +497,89 @@ async function handleNaturalLanguageIntent(
   }
 
   if (intent.intent === 'mark_done') {
-    if (!intent.itemNumber) {
-      await timeTelegram(metrics, () => client.sendMessage(chatId, clarificationText(language, intent.clarificationQuestion || 'Which listed item number should I mark done?'), { parse_mode: 'HTML' }));
+    if (intent.itemNumber) {
+      const resolved = await resolveTelegramItemRef(chatId, intent.itemNumber);
+      if (!resolved) {
+        await timeTelegram(metrics, () => client.sendMessage(chatId, messages.couldNotFindMatchedItem));
+        return;
+      }
+
+      await executeManagementAction('done', resolved.ref, resolved.contextId, {}, client, chatId, userId, language, metrics);
       return;
     }
 
-    const resolved = await resolveTelegramItemRef(chatId, intent.itemNumber);
-    if (!resolved) {
-      await timeTelegram(metrics, () => client.sendMessage(chatId, messages.couldNotFindItem));
+    const context = await latestOrTodayContext(chatId, userId, originalText, metrics);
+    if (!context) {
+      setPendingAction(chatId, { type: 'done', contextId: null });
+      await timeTelegram(metrics, () => client.sendMessage(chatId, `${messages.whichItemDone}\n\n${messages.couldNotFindMatchedItem}`, {
+        parse_mode: 'HTML',
+        reply_markup: formatTelegramCancelKeyboard(language),
+      }));
       return;
     }
 
-    const dbStartedAt = Date.now();
-    const result = await markTelegramRefDone(userId, resolved.ref);
-    metrics.dbQueryDurationMs = durationSince(dbStartedAt);
-    if (!result) {
-      await timeTelegram(metrics, () => client.sendMessage(chatId, messages.couldNotFindItem));
+    const match = matchTelegramRefsByText(context, actionableHint(intent, originalText));
+    if (match.status === 'single') {
+      await executeManagementAction('done', match.matches[0], context.contextId, {}, client, chatId, userId, language, metrics);
       return;
     }
-    const title = result.status === 'already_done' ? messages.alreadyDone : messages.doneTitle;
-    await timeTelegram(metrics, () => client.sendMessage(chatId, `${title}\n\n${formatTelegramRefPreview(resolved.ref)}`, { parse_mode: 'HTML' }));
+    if (match.status === 'multiple') {
+      await askForMatchedItemChoice('done', context.contextId, match.matches, client, chatId, language, metrics);
+      return;
+    }
+
+    setPendingAction(chatId, { type: 'done', contextId: context.contextId });
+    await timeTelegram(metrics, () => client.sendMessage(chatId, messages.couldNotFindMatchedItem, {
+      reply_markup: formatTelegramCancelKeyboard(language),
+    }));
     return;
   }
 
   if (intent.intent === 'delete_item') {
-    if (!intent.itemNumber) {
-      await timeTelegram(metrics, () => client.sendMessage(chatId, clarificationText(language, intent.clarificationQuestion || 'Which listed item number should I delete?'), { parse_mode: 'HTML' }));
+    if (intent.itemNumber) {
+      const resolved = await resolveTelegramItemRef(chatId, intent.itemNumber);
+      if (!resolved) {
+        await timeTelegram(metrics, () => client.sendMessage(chatId, messages.couldNotFindMatchedItem));
+        return;
+      }
+      await executeManagementAction('delete', resolved.ref, resolved.contextId, {}, client, chatId, userId, language, metrics);
       return;
     }
 
-    const resolved = await resolveTelegramItemRef(chatId, intent.itemNumber);
-    if (!resolved) {
-      await timeTelegram(metrics, () => client.sendMessage(chatId, messages.couldNotFindItem));
+    const context = await latestOrTodayContext(chatId, userId, originalText, metrics);
+    if (!context) {
+      setPendingAction(chatId, { type: 'delete', contextId: null });
+      await timeTelegram(metrics, () => client.sendMessage(chatId, `${messages.whichItemDelete}\n\n${messages.couldNotFindMatchedItem}`, {
+        parse_mode: 'HTML',
+        reply_markup: formatTelegramCancelKeyboard(language),
+      }));
       return;
     }
 
-    await timeTelegram(metrics, () => client.sendMessage(chatId, `${messages.deletePrompt}\n\n${formatTelegramRefPreview(resolved.ref)}`, {
-      parse_mode: 'HTML',
-      reply_markup: {
-        inline_keyboard: [[
-          { text: messages.confirmDelete, callback_data: `item_delete_confirm:${resolved.contextId}:${intent.itemNumber}` },
-          { text: messages.canceled, callback_data: 'item_delete_cancel' },
-        ]],
-      },
+    const match = matchTelegramRefsByText(context, actionableHint(intent, originalText));
+    if (match.status === 'single') {
+      await executeManagementAction('delete', match.matches[0], context.contextId, {}, client, chatId, userId, language, metrics);
+      return;
+    }
+    if (match.status === 'multiple') {
+      await askForMatchedItemChoice('delete', context.contextId, match.matches, client, chatId, language, metrics);
+      return;
+    }
+
+    setPendingAction(chatId, { type: 'delete', contextId: context.contextId });
+    await timeTelegram(metrics, () => client.sendMessage(chatId, messages.couldNotFindMatchedItem, {
+      reply_markup: formatTelegramCancelKeyboard(language),
     }));
     return;
   }
 
   if (intent.intent === 'move_item') {
-    if (!intent.itemNumber || !intent.targetDate) {
-      await timeTelegram(metrics, () => client.sendMessage(chatId, clarificationText(language, intent.clarificationQuestion || 'Which listed item number should I move, and where?'), { parse_mode: 'HTML' }));
+    if (!intent.targetDate) {
+      setPendingAction(chatId, { type: 'move', contextId: null });
+      await timeTelegram(metrics, () => client.sendMessage(chatId, clarificationText(language, intent.clarificationQuestion || messages.whichItemMove), {
+        parse_mode: 'HTML',
+        reply_markup: formatTelegramCancelKeyboard(language),
+      }));
       return;
     }
 
@@ -376,29 +589,57 @@ async function handleNaturalLanguageIntent(
       return;
     }
 
-    const resolved = await resolveTelegramItemRef(chatId, intent.itemNumber);
-    if (!resolved) {
-      await timeTelegram(metrics, () => client.sendMessage(chatId, messages.couldNotFindItem));
+    if (intent.itemNumber) {
+      const resolved = await resolveTelegramItemRef(chatId, intent.itemNumber);
+      if (!resolved) {
+        await timeTelegram(metrics, () => client.sendMessage(chatId, messages.couldNotFindMatchedItem));
+        return;
+      }
+      await executeManagementAction('move', resolved.ref, resolved.contextId, {
+        targetDate: targetDay,
+        targetTimeStart: intent.targetTimeStart,
+      }, client, chatId, userId, language, metrics);
       return;
     }
 
-    const dbStartedAt = Date.now();
-    const result = await moveTelegramRef(userId, resolved.ref, targetDay, intent.targetTimeStart);
-    metrics.dbQueryDurationMs = durationSince(dbStartedAt);
-    if (!result) {
-      await timeTelegram(metrics, () => client.sendMessage(chatId, messages.couldNotFindItem));
+    const context = await latestOrTodayContext(chatId, userId, originalText, metrics);
+    if (!context) {
+      setPendingAction(chatId, { type: 'move', contextId: null, targetDate: targetDay, targetTimeStart: intent.targetTimeStart });
+      await timeTelegram(metrics, () => client.sendMessage(chatId, `${messages.whichItemMove}\n\n${messages.couldNotFindMatchedItem}`, {
+        parse_mode: 'HTML',
+        reply_markup: formatTelegramCancelKeyboard(language),
+      }));
       return;
     }
-    if (result.status === 'unsupported_recurring') {
-      await timeTelegram(metrics, () => client.sendMessage(chatId, messages.recurringMoveUnsupported));
+
+    const match = matchTelegramRefsByText(context, actionableHint(intent, originalText));
+    if (match.status === 'single') {
+      await executeManagementAction('move', match.matches[0], context.contextId, {
+        targetDate: targetDay,
+        targetTimeStart: intent.targetTimeStart,
+      }, client, chatId, userId, language, metrics);
       return;
     }
-    await timeTelegram(metrics, () => client.sendMessage(chatId, `${messages.movedTitle}\n\n${formatTelegramRefPreview(result.ref)}`, { parse_mode: 'HTML' }));
+    if (match.status === 'multiple') {
+      await askForMatchedItemChoice('move', context.contextId, match.matches, client, chatId, language, metrics, {
+        targetDate: targetDay,
+        targetTimeStart: intent.targetTimeStart,
+      });
+      return;
+    }
+
+    setPendingAction(chatId, { type: 'move', contextId: context.contextId, targetDate: targetDay, targetTimeStart: intent.targetTimeStart });
+    await timeTelegram(metrics, () => client.sendMessage(chatId, messages.couldNotFindMatchedItem, {
+      reply_markup: formatTelegramCancelKeyboard(language),
+    }));
     return;
   }
 
   if (intent.intent === 'clarify') {
-    await timeTelegram(metrics, () => client.sendMessage(chatId, clarificationText(language, intent.clarificationQuestion), { parse_mode: 'HTML' }));
+    await timeTelegram(metrics, () => client.sendMessage(chatId, clarificationText(language, intent.clarificationQuestion), {
+      parse_mode: 'HTML',
+      reply_markup: formatTelegramCancelKeyboard(language),
+    }));
     return;
   }
 
@@ -421,7 +662,7 @@ export async function handleTelegramUpdate(update: any, client: TelegramClient, 
 
   if (!chatId || (allowedChatId && chatId !== allowedChatId)) {
     if (chatId) {
-      console.log(`[Telegram] Unauthorized access attempt from chat ${chatId}`);
+      console.log('[Telegram] Unauthorized access attempt', { chatPresent: true });
     }
     return;
   }
@@ -437,6 +678,42 @@ export async function handleTelegramUpdate(update: any, client: TelegramClient, 
     const data = String(update.callback_query.data || '');
     const queryId = update.callback_query.id;
     const messageId = update.callback_query.message?.message_id;
+
+    if (data === 'pending:cancel') {
+      clearPendingAction(chatId);
+      await timeTelegram(metrics, () => client.answerCallbackQuery(queryId, messages.cancelledAction));
+      if (messageId) {
+        await timeTelegram(metrics, () => client.editMessageText(chatId, messageId, messages.cancelledAction));
+      }
+      logTelegramTiming('callback_pending_cancel', startedAt, metrics);
+      return;
+    }
+
+    if (data.startsWith('pending_pick:')) {
+      const pending = getPendingAction(chatId);
+      const itemNumber = parseItemNumber(data.split(':')[1]);
+      if (!pending || !itemNumber) {
+        await timeTelegram(metrics, () => client.answerCallbackQuery(queryId, messages.couldNotFindMatchedItem, true));
+        logTelegramTiming('callback_pending_pick', startedAt, metrics);
+        return;
+      }
+
+      const resolved = await resolveTelegramItemRef(chatId, itemNumber, pending.contextId);
+      if (!resolved) {
+        await timeTelegram(metrics, () => client.answerCallbackQuery(queryId, messages.couldNotFindMatchedItem, true));
+        logTelegramTiming('callback_pending_pick', startedAt, metrics);
+        return;
+      }
+
+      clearPendingAction(chatId);
+      await timeTelegram(metrics, () => client.answerCallbackQuery(queryId));
+      await executeManagementAction(pending.type, resolved.ref, resolved.contextId, {
+        targetDate: pending.targetDate,
+        targetTimeStart: pending.targetTimeStart,
+      }, client, chatId, userId, language, metrics);
+      logTelegramTiming(`callback_pending_${actionLogName(pending.type)}`, startedAt, metrics);
+      return;
+    }
 
     if (data.startsWith('day:')) {
       const [, action, rawDay] = data.split(':');
@@ -641,9 +918,10 @@ export async function handleTelegramUpdate(update: any, client: TelegramClient, 
     }
 
     if (data === 'flow:cancel') {
-      await timeTelegram(metrics, () => client.answerCallbackQuery(queryId, messages.canceled));
+      clearPendingAction(chatId);
+      await timeTelegram(metrics, () => client.answerCallbackQuery(queryId, messages.cancelledAction));
       if (messageId) {
-        await timeTelegram(metrics, () => client.editMessageText(chatId, messageId, messages.canceled));
+        await timeTelegram(metrics, () => client.editMessageText(chatId, messageId, messages.cancelledAction));
       }
       logTelegramTiming('callback_item_flow_cancel', startedAt, metrics);
       return;
@@ -661,6 +939,7 @@ export async function handleTelegramUpdate(update: any, client: TelegramClient, 
 
       const dbStartedAt = Date.now();
       await deleteTelegramRef(userId, resolved.ref);
+      clearPendingAction(chatId);
       metrics.dbQueryDurationMs = durationSince(dbStartedAt);
       await timeTelegram(metrics, () => client.answerCallbackQuery(queryId, messages.deletedTitle));
       if (messageId) {
@@ -676,9 +955,10 @@ export async function handleTelegramUpdate(update: any, client: TelegramClient, 
     }
 
     if (data === 'item_delete_cancel') {
-      await timeTelegram(metrics, () => client.answerCallbackQuery(queryId, messages.canceled));
+      clearPendingAction(chatId);
+      await timeTelegram(metrics, () => client.answerCallbackQuery(queryId, messages.cancelledAction));
       if (messageId) {
-        await timeTelegram(metrics, () => client.editMessageText(chatId, messageId, messages.canceled));
+        await timeTelegram(metrics, () => client.editMessageText(chatId, messageId, messages.cancelledAction));
       }
       logTelegramTiming('callback_item_delete', startedAt, metrics);
       return;
@@ -805,6 +1085,17 @@ export async function handleTelegramUpdate(update: any, client: TelegramClient, 
     const command = normalizeTelegramCommand(text);
     
     // Commands
+    if (command === 'cancel') {
+      clearPendingAction(chatId);
+      await timeTelegram(metrics, () => client.sendMessage(chatId, messages.cancelledAction));
+      logTelegramTiming('command_cancel', startedAt, metrics);
+      return;
+    }
+
+    if (command) {
+      clearPendingAction(chatId);
+    }
+
     if (command === 'start') {
       await timeTelegram(metrics, () => client.sendMessage(chatId, messages.start, { parse_mode: 'HTML' }));
       logTelegramTiming('command', startedAt, metrics);
@@ -958,6 +1249,27 @@ export async function handleTelegramUpdate(update: any, client: TelegramClient, 
       return;
     }
 
+    const pending = getPendingAction(chatId);
+    const pendingItemNumber = parseItemNumber(text.trim());
+    if (pending && pendingItemNumber) {
+      const resolved = await resolveTelegramItemRef(chatId, pendingItemNumber, pending.contextId);
+      if (!resolved) {
+        await timeTelegram(metrics, () => client.sendMessage(chatId, messages.couldNotFindMatchedItem, {
+          reply_markup: formatTelegramCancelKeyboard(language),
+        }));
+        logTelegramTiming(`text_pending_${actionLogName(pending.type)}_missing`, startedAt, metrics);
+        return;
+      }
+
+      clearPendingAction(chatId);
+      await executeManagementAction(pending.type, resolved.ref, resolved.contextId, {
+        targetDate: pending.targetDate,
+        targetTimeStart: pending.targetTimeStart,
+      }, client, chatId, userId, language, metrics);
+      logTelegramTiming(`text_pending_${actionLogName(pending.type)}`, startedAt, metrics);
+      return;
+    }
+
     const gated = gateTelegramTextBeforeAi(text, language);
     if (!gated.allowed) {
       if (gated.message) await timeTelegram(metrics, () => client.sendMessage(chatId, gated.message, { parse_mode: 'HTML' }));
@@ -984,8 +1296,15 @@ export async function handleTelegramUpdate(update: any, client: TelegramClient, 
       await handleNaturalLanguageIntent(intent, gated.text, client, chatId, userId, language, metrics);
       logTelegramTiming('ai_intent_router', startedAt, metrics);
     } catch (err: any) {
-      console.error('[Telegram Handler] AI error', err);
-      await timeTelegram(metrics, () => client.sendMessage(chatId, messages.requestFailed(err.message)));
+      console.error('[Telegram Handler] Freeform handling failed', {
+        route: 'ai_intent_router',
+        chatPresent: Boolean(chatId),
+        usedAiRouter: metrics.usedAiRouter,
+        usedDraftAi: metrics.usedDraftAi,
+        pendingActionType: getPendingAction(chatId)?.type ?? null,
+        ...safeErrorMeta(err),
+      });
+      await trySendGracefulError(client, chatId, language, metrics);
       logTelegramTiming('error', startedAt, metrics);
     }
   }

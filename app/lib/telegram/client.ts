@@ -7,6 +7,36 @@ export class TelegramClient {
     this.baseUrl = `https://api.telegram.org/bot${token}`;
   }
 
+  private async requestTelegram(method: string, body?: Record<string, unknown>, meta?: Record<string, unknown>) {
+    try {
+      const res = await fetch(`${this.baseUrl}/${method}`, {
+        method: body ? 'POST' : 'GET',
+        headers: body ? { 'Content-Type': 'application/json' } : undefined,
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      const data = await res.json() as any;
+      if (!data?.ok) {
+        console.warn('[Telegram API] Non-ok response', {
+          method,
+          status: res.status,
+          description: data?.description,
+          ...meta,
+        });
+      }
+      return data;
+    } catch (err: any) {
+      console.error('[Telegram API] Request failed', {
+        method,
+        errorName: err?.name,
+        errorMessage: err?.message,
+        causeName: err?.cause?.name,
+        causeMessage: err?.cause?.message,
+        ...meta,
+      });
+      throw err;
+    }
+  }
+
   async getUpdates(offset?: number, timeout = 30) {
     const url = new URL(`${this.baseUrl}/getUpdates`);
     if (offset) url.searchParams.append('offset', offset.toString());
@@ -20,89 +50,80 @@ export class TelegramClient {
   }
 
   async deleteWebhook() {
-    const res = await fetch(`${this.baseUrl}/deleteWebhook`);
-    return await res.json();
+    return this.requestTelegram('deleteWebhook');
   }
 
   async setWebhook(url: string, secretToken: string) {
-    const res = await fetch(`${this.baseUrl}/setWebhook`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        url,
-        secret_token: secretToken,
-        allowed_updates: ['message', 'callback_query'],
-      }),
-    });
-    return await res.json();
+    return this.requestTelegram('setWebhook', {
+      url,
+      secret_token: secretToken,
+      allowed_updates: ['message', 'callback_query'],
+    }, { hasSecretToken: Boolean(secretToken), urlHost: safeUrlHost(url) });
   }
 
   async getWebhookInfo() {
-    const res = await fetch(`${this.baseUrl}/getWebhookInfo`);
-    return await res.json();
+    return this.requestTelegram('getWebhookInfo');
   }
 
   async setMyCommands(commands: Array<{ command: string; description: string }>, languageCode?: string) {
-    const res = await fetch(`${this.baseUrl}/setMyCommands`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        commands,
-        ...(languageCode ? { language_code: languageCode } : {}),
-      }),
-    });
-    return await res.json();
+    return this.requestTelegram('setMyCommands', {
+      commands,
+      ...(languageCode ? { language_code: languageCode } : {}),
+    }, { languageCode: languageCode || 'default', commandCount: commands.length });
   }
 
   async setChatMenuButton(chatId?: string) {
-    const res = await fetch(`${this.baseUrl}/setChatMenuButton`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ...(chatId ? { chat_id: chatId } : {}),
-        menu_button: { type: 'commands' },
-      }),
-    });
-    return await res.json();
+    return this.requestTelegram('setChatMenuButton', {
+      ...(chatId ? { chat_id: chatId } : {}),
+      menu_button: { type: 'commands' },
+    }, { hasChatId: Boolean(chatId) });
   }
 
   async sendMessage(chatId: string, text: string, options?: any) {
-    const res = await fetch(`${this.baseUrl}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text,
-        ...options
-      }),
+    return this.requestTelegram('sendMessage', {
+      chat_id: chatId,
+      text,
+      ...options
+    }, {
+      hasChatId: Boolean(chatId),
+      textLength: text.length,
+      hasReplyMarkup: Boolean(options?.reply_markup),
+      parseMode: options?.parse_mode || null,
     });
-    return await res.json();
   }
 
   async editMessageText(chatId: string, messageId: number, text: string, options?: any) {
-    const res = await fetch(`${this.baseUrl}/editMessageText`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chatId,
-        message_id: messageId,
-        text,
-        ...options
-      }),
+    return this.requestTelegram('editMessageText', {
+      chat_id: chatId,
+      message_id: messageId,
+      text,
+      ...options
+    }, {
+      hasChatId: Boolean(chatId),
+      hasMessageId: Number.isFinite(messageId),
+      textLength: text.length,
+      hasReplyMarkup: Boolean(options?.reply_markup),
+      parseMode: options?.parse_mode || null,
     });
-    return await res.json();
   }
 
   async answerCallbackQuery(callbackQueryId: string, text?: string, showAlert?: boolean) {
-    const res = await fetch(`${this.baseUrl}/answerCallbackQuery`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        callback_query_id: callbackQueryId,
-        text,
-        show_alert: showAlert
-      }),
+    return this.requestTelegram('answerCallbackQuery', {
+      callback_query_id: callbackQueryId,
+      text,
+      show_alert: showAlert
+    }, {
+      hasCallbackQueryId: Boolean(callbackQueryId),
+      textLength: text?.length ?? 0,
+      showAlert: Boolean(showAlert),
     });
-    return await res.json();
+  }
+}
+
+function safeUrlHost(value: string) {
+  try {
+    return new URL(value).host;
+  } catch {
+    return 'invalid-url';
   }
 }

@@ -21,6 +21,7 @@ type TelegramMessages = {
   failedToSave: string;
   canceled: string;
   canceledDraft: string;
+  cancelledAction: string;
   unknownAction: string;
   cooldown: string;
   requestFailed: (message: string) => string;
@@ -59,6 +60,7 @@ type TelegramMessages = {
   deletePrompt: string;
   confirmDelete: string;
   couldNotFindItem: string;
+  couldNotFindMatchedItem: string;
   couldNotUnderstandDateTime: string;
   moveUsage: string;
   recurringMoveUnsupported: string;
@@ -71,6 +73,11 @@ type TelegramMessages = {
   actionMove: string;
   actionDelete: string;
   chooseItem: (action: string) => string;
+  whichItem: string;
+  whichItemDone: string;
+  whichItemDelete: string;
+  whichItemMove: string;
+  multipleMatches: string;
   noListItems: string;
   moveDestinationTitle: string;
   moveToday: string;
@@ -87,7 +94,7 @@ export const TELEGRAM_MESSAGES: Record<TelegramLanguage, TelegramMessages> = {
     start:
       'CALENDXR bot is ready.\n\nYou can use:\n/today\n/tomorrow\n/day friday\n/upcoming\n/week\n/language\n/settings\n\nSend a task or event and I will prepare a draft.\n\nDaily digest is off by default. You can enable it in /settings.',
     help:
-      'Help\n\n/today - Show today\n/tomorrow - Show tomorrow\n/day friday - Show a day\n/upcoming - Show today and tomorrow\n/week - Show next 7 days\n/done 2 - Mark listed item done\n/delete 2 - Delete listed item\n/move 2 tomorrow 14:00 - Move listed item\n/settings - Bot settings\n/language - Change language\n\nExamples\ncreate dentist tomorrow at 18:00\nevery Friday at 10:00 volunteering\ntomorrow buy medicine and send the letter',
+      'Help\n\n/today - Show today\n/tomorrow - Show tomorrow\n/day friday - Show a day\n/upcoming - Show today and tomorrow\n/week - Show next 7 days\n/done 2 - Mark listed item done\n/delete 2 - Delete listed item\n/move 2 tomorrow 14:00 - Move listed item\n/cancel - Cancel pending action\n/settings - Bot settings\n/language - Change language\n\nExamples\ncreate dentist tomorrow at 18:00\nevery Friday at 10:00 volunteering\ntomorrow buy medicine and send the letter',
     thinking: 'Thinking...',
     clarificationNeeded: 'Clarification needed:',
     noDrafts: 'No drafts could be interpreted.',
@@ -97,6 +104,7 @@ export const TELEGRAM_MESSAGES: Record<TelegramLanguage, TelegramMessages> = {
     failedToSave: 'Failed to save.',
     canceled: 'Canceled.',
     canceledDraft: 'Canceled draft.',
+    cancelledAction: 'Cancelled.',
     unknownAction: 'Unknown action.',
     cooldown: 'Please give me a moment before the next AI-routed request.',
     requestFailed: (message) => `Failed to handle Telegram request: ${message}`,
@@ -135,6 +143,7 @@ export const TELEGRAM_MESSAGES: Record<TelegramLanguage, TelegramMessages> = {
     deletePrompt: 'Delete this item?',
     confirmDelete: 'Confirm delete',
     couldNotFindItem: 'Could not find that item. Run /today first.',
+    couldNotFindMatchedItem: 'I could not find that item. Choose a number from the list or run /today.',
     couldNotUnderstandDateTime: 'I could not understand the date/time.',
     moveUsage: 'Use: /move 2 tomorrow 14:00',
     recurringMoveUnsupported: 'This recurring occurrence cannot be moved yet.',
@@ -147,6 +156,11 @@ export const TELEGRAM_MESSAGES: Record<TelegramLanguage, TelegramMessages> = {
     actionMove: 'Move',
     actionDelete: 'Delete',
     chooseItem: (action) => `${action}\n\nChoose item number.`,
+    whichItem: 'Which item?',
+    whichItemDone: 'Which item should I mark done?',
+    whichItemDelete: 'Which listed item should I delete?',
+    whichItemMove: 'Which item should I move?',
+    multipleMatches: 'I found multiple matches.',
     noListItems: 'No active items in this list.',
     moveDestinationTitle: 'Move\n\nChoose destination.',
     moveToday: 'Today',
@@ -162,7 +176,7 @@ export const TELEGRAM_MESSAGES: Record<TelegramLanguage, TelegramMessages> = {
     start:
       'Le bot CALENDXR est prêt.\n\nVous pouvez utiliser :\n/today\n/tomorrow\n/day friday\n/upcoming\n/week\n/language\n/settings\n\nEnvoyez une tâche ou un événement et je préparerai un brouillon.\n\nLe résumé quotidien est désactivé par défaut. Vous pouvez l’activer dans /settings.',
     help:
-      'Aide\n\n/today - Voir aujourd’hui\n/tomorrow - Voir demain\n/day friday - Voir une journée\n/upcoming - Voir aujourd’hui et demain\n/week - Voir les 7 prochains jours\n/done 2 - Marquer un élément comme terminé\n/delete 2 - Supprimer un élément listé\n/move 2 tomorrow 14:00 - Déplacer un élément listé\n/settings - Paramètres du bot\n/language - Changer la langue\n\nExemples\ncréer dentiste demain à 18:00\nchaque vendredi à 10:00 bénévolat\ndemain acheter des médicaments et envoyer la lettre',
+      'Aide\n\n/today - Voir aujourd’hui\n/tomorrow - Voir demain\n/day friday - Voir une journée\n/upcoming - Voir aujourd’hui et demain\n/week - Voir les 7 prochains jours\n/done 2 - Marquer un élément comme terminé\n/delete 2 - Supprimer un élément listé\n/move 2 tomorrow 14:00 - Déplacer un élément listé\n/cancel - Annuler l’action en attente\n/settings - Paramètres du bot\n/language - Changer la langue\n\nExemples\ncréer dentiste demain à 18:00\nchaque vendredi à 10:00 bénévolat\ndemain acheter des médicaments et envoyer la lettre',
     thinking: 'Je réfléchis...',
     clarificationNeeded: 'Précision nécessaire :',
     noDrafts: 'Aucun brouillon n’a pu être interprété.',
@@ -172,6 +186,7 @@ export const TELEGRAM_MESSAGES: Record<TelegramLanguage, TelegramMessages> = {
     failedToSave: 'Échec de l’enregistrement.',
     canceled: 'Annulé.',
     canceledDraft: 'Brouillon annulé.',
+    cancelledAction: 'Annulé.',
     unknownAction: 'Action inconnue.',
     cooldown: 'Merci d’attendre un instant avant la prochaine requête avec IA.',
     requestFailed: (message) => `Échec du traitement de la requête Telegram : ${message}`,
@@ -210,6 +225,7 @@ export const TELEGRAM_MESSAGES: Record<TelegramLanguage, TelegramMessages> = {
     deletePrompt: 'Supprimer cet élément ?',
     confirmDelete: 'Confirmer la suppression',
     couldNotFindItem: 'Élément introuvable. Lancez /today d’abord.',
+    couldNotFindMatchedItem: 'Je n’ai pas trouvé cet élément. Choisissez un numéro dans la liste ou lancez /today.',
     couldNotUnderstandDateTime: 'Je n’ai pas compris la date ou l’heure.',
     moveUsage: 'Utilisez : /move 2 tomorrow 14:00',
     recurringMoveUnsupported: 'Cette occurrence récurrente ne peut pas encore être déplacée.',
@@ -222,6 +238,11 @@ export const TELEGRAM_MESSAGES: Record<TelegramLanguage, TelegramMessages> = {
     actionMove: 'Déplacer',
     actionDelete: 'Supprimer',
     chooseItem: (action) => `${action}\n\nChoisissez le numéro de l’élément.`,
+    whichItem: 'Quel élément ?',
+    whichItemDone: 'Quel élément faut-il marquer comme terminé ?',
+    whichItemDelete: 'Quel élément listé faut-il supprimer ?',
+    whichItemMove: 'Quel élément faut-il déplacer ?',
+    multipleMatches: 'J’ai trouvé plusieurs correspondances.',
     noListItems: 'Aucun élément actif dans cette liste.',
     moveDestinationTitle: 'Déplacer\n\nChoisissez la destination.',
     moveToday: 'Aujourd’hui',
@@ -237,7 +258,7 @@ export const TELEGRAM_MESSAGES: Record<TelegramLanguage, TelegramMessages> = {
     start:
       'Бот CALENDXR готовий.\n\nМожна використовувати:\n/today\n/tomorrow\n/day friday\n/upcoming\n/week\n/language\n/settings\n\nНадішліть задачу або подію, і я підготую чернетку.\n\nЩоденний огляд типово вимкнений. Його можна ввімкнути в /settings.',
     help:
-      'Допомога\n\n/today - Показати сьогодні\n/tomorrow - Показати завтра\n/day friday - Показати день\n/upcoming - Показати сьогодні й завтра\n/week - Показати наступні 7 днів\n/done 2 - Позначити елемент виконаним\n/delete 2 - Видалити елемент зі списку\n/move 2 tomorrow 14:00 - Перенести елемент зі списку\n/settings - Налаштування бота\n/language - Змінити мову\n\nПриклади\nстворити стоматолога завтра о 18:00\nщоп’ятниці о 10:00 волонтерство\nзавтра купити ліки й надіслати лист',
+      'Допомога\n\n/today - Показати сьогодні\n/tomorrow - Показати завтра\n/day friday - Показати день\n/upcoming - Показати сьогодні й завтра\n/week - Показати наступні 7 днів\n/done 2 - Позначити елемент виконаним\n/delete 2 - Видалити елемент зі списку\n/move 2 tomorrow 14:00 - Перенести елемент зі списку\n/cancel - Скасувати очікувану дію\n/settings - Налаштування бота\n/language - Змінити мову\n\nПриклади\nстворити стоматолога завтра о 18:00\nщоп’ятниці о 10:00 волонтерство\nзавтра купити ліки й надіслати лист',
     thinking: 'Думаю...',
     clarificationNeeded: 'Потрібне уточнення:',
     noDrafts: 'Не вдалося розпізнати жодної чернетки.',
@@ -247,6 +268,7 @@ export const TELEGRAM_MESSAGES: Record<TelegramLanguage, TelegramMessages> = {
     failedToSave: 'Не вдалося зберегти.',
     canceled: 'Скасовано.',
     canceledDraft: 'Чернетку скасовано.',
+    cancelledAction: 'Скасовано.',
     unknownAction: 'Невідома дія.',
     cooldown: 'Зачекайте трохи перед наступним AI-запитом.',
     requestFailed: (message) => `Не вдалося обробити запит Telegram: ${message}`,
@@ -285,6 +307,7 @@ export const TELEGRAM_MESSAGES: Record<TelegramLanguage, TelegramMessages> = {
     deletePrompt: 'Видалити цей елемент?',
     confirmDelete: 'Підтвердити видалення',
     couldNotFindItem: 'Не вдалося знайти цей елемент. Спочатку запустіть /today.',
+    couldNotFindMatchedItem: 'Не вдалося знайти цей елемент. Оберіть номер зі списку або запустіть /today.',
     couldNotUnderstandDateTime: 'Не вдалося зрозуміти дату або час.',
     moveUsage: 'Використайте: /move 2 tomorrow 14:00',
     recurringMoveUnsupported: 'Цю повторювану подію поки не можна перенести.',
@@ -297,6 +320,11 @@ export const TELEGRAM_MESSAGES: Record<TelegramLanguage, TelegramMessages> = {
     actionMove: 'Перенести',
     actionDelete: 'Видалити',
     chooseItem: (action) => `${action}\n\nОберіть номер елемента.`,
+    whichItem: 'Який елемент?',
+    whichItemDone: 'Який елемент позначити виконаним?',
+    whichItemDelete: 'Який елемент зі списку видалити?',
+    whichItemMove: 'Який елемент перенести?',
+    multipleMatches: 'Знайдено кілька збігів.',
     noListItems: 'У цьому списку немає активних елементів.',
     moveDestinationTitle: 'Перенести\n\nОберіть місце призначення.',
     moveToday: 'Сьогодні',
@@ -312,7 +340,7 @@ export const TELEGRAM_MESSAGES: Record<TelegramLanguage, TelegramMessages> = {
     start:
       'Бот CALENDXR готов.\n\nМожно использовать:\n/today\n/tomorrow\n/day friday\n/upcoming\n/week\n/language\n/settings\n\nОтправьте задачу или событие, и я подготовлю черновик.\n\nЕжедневная сводка по умолчанию выключена. Её можно включить в /settings.',
     help:
-      'Помощь\n\n/today - Показать сегодня\n/tomorrow - Показать завтра\n/day friday - Показать день\n/upcoming - Показать сегодня и завтра\n/week - Показать следующие 7 дней\n/done 2 - Отметить элемент выполненным\n/delete 2 - Удалить элемент из списка\n/move 2 tomorrow 14:00 - Перенести элемент из списка\n/settings - Настройки бота\n/language - Изменить язык\n\nПримеры\nсоздай завтра в 18:00 стоматолог\nкаждую пятницу в 10:00 волонтёрство\nзавтра купить таблетки и отправить письмо',
+      'Помощь\n\n/today - Показать сегодня\n/tomorrow - Показать завтра\n/day friday - Показать день\n/upcoming - Показать сегодня и завтра\n/week - Показать следующие 7 дней\n/done 2 - Отметить элемент выполненным\n/delete 2 - Удалить элемент из списка\n/move 2 tomorrow 14:00 - Перенести элемент из списка\n/cancel - Отменить ожидающее действие\n/settings - Настройки бота\n/language - Изменить язык\n\nПримеры\nсоздай завтра в 18:00 стоматолог\nкаждую пятницу в 10:00 волонтёрство\nзавтра купить таблетки и отправить письмо',
     thinking: 'Думаю...',
     clarificationNeeded: 'Нужно уточнение:',
     noDrafts: 'Не удалось распознать ни одного черновика.',
@@ -322,6 +350,7 @@ export const TELEGRAM_MESSAGES: Record<TelegramLanguage, TelegramMessages> = {
     failedToSave: 'Не удалось сохранить.',
     canceled: 'Отменено.',
     canceledDraft: 'Черновик отменён.',
+    cancelledAction: 'Отменено.',
     unknownAction: 'Неизвестное действие.',
     cooldown: 'Пожалуйста, подождите немного перед следующим AI-запросом.',
     requestFailed: (message) => `Не удалось обработать Telegram-запрос: ${message}`,
@@ -360,6 +389,7 @@ export const TELEGRAM_MESSAGES: Record<TelegramLanguage, TelegramMessages> = {
     deletePrompt: 'Удалить этот элемент?',
     confirmDelete: 'Подтвердить удаление',
     couldNotFindItem: 'Не удалось найти этот элемент. Сначала запустите /today.',
+    couldNotFindMatchedItem: 'Не удалось найти этот элемент. Выберите номер из списка или запустите /today.',
     couldNotUnderstandDateTime: 'Не удалось понять дату или время.',
     moveUsage: 'Используйте: /move 2 tomorrow 14:00',
     recurringMoveUnsupported: 'Этот повторяющийся экземпляр пока нельзя перенести.',
@@ -372,6 +402,11 @@ export const TELEGRAM_MESSAGES: Record<TelegramLanguage, TelegramMessages> = {
     actionMove: 'Перенести',
     actionDelete: 'Удалить',
     chooseItem: (action) => `${action}\n\nВыберите номер элемента.`,
+    whichItem: 'Какой элемент?',
+    whichItemDone: 'Какой элемент отметить выполненным?',
+    whichItemDelete: 'Какой элемент из списка удалить?',
+    whichItemMove: 'Какой элемент перенести?',
+    multipleMatches: 'Нашёл несколько совпадений.',
     noListItems: 'В этом списке нет активных элементов.',
     moveDestinationTitle: 'Перенести\n\nВыберите день.',
     moveToday: 'Сегодня',

@@ -38,10 +38,12 @@ export type TelegramItemRef = {
   order?: number | null;
 };
 
-type TelegramListContext = {
+export type TelegramListContext = {
   contextId: string;
   items: TelegramItemRef[];
 };
+
+export type TelegramManagementAction = 'done' | 'delete' | 'move';
 
 const WEEKDAY_ALIASES: Record<string, number> = {
   sunday: 0,
@@ -59,6 +61,62 @@ const WEEKDAY_ALIASES: Record<string, number> = {
   saturday: 6,
   sat: 6,
 };
+
+const TEXT_MATCH_STOP_WORDS = new Set([
+  'done',
+  'delete',
+  'move',
+  'mark',
+  'completed',
+  'cancel',
+  'today',
+  'tomorrow',
+  'please',
+  'удали',
+  'удалить',
+  'удалил',
+  'удаляла',
+  'удаляй',
+  'выполнил',
+  'выполнила',
+  'выполнено',
+  'отметь',
+  'отметить',
+  'готово',
+  'сделал',
+  'сделала',
+  'перенеси',
+  'перенести',
+  'перенёс',
+  'перенес',
+  'сегодня',
+  'завтра',
+  'пожалуйста',
+  'нахуй',
+  'нахуя',
+  'блять',
+  'бля',
+  'сука',
+  'видали',
+  'видалити',
+  'виконав',
+  'виконала',
+  'познач',
+  'перенеси',
+  'перенести',
+  'сьогодні',
+  'завтра',
+  'supprime',
+  'supprimer',
+  'termine',
+  'terminé',
+  'deplace',
+  'déplace',
+  'deplacer',
+  'déplacer',
+  'aujourdhui',
+  'demain',
+]);
 
 function activeItems(items: Item[]) {
   return items.filter((item) => item.status !== 'done' && item.status !== 'canceled');
@@ -189,6 +247,24 @@ export function formatTelegramItemPickerKeyboard(
   }
   rows.push([{ text: t(language).canceled, callback_data: 'flow:cancel' }]);
   return { inline_keyboard: rows };
+}
+
+export function formatTelegramPendingChoiceKeyboard(refs: TelegramItemRef[], language: TelegramLanguage) {
+  const rows: Array<Array<{ text: string; callback_data: string }>> = [];
+  for (let index = 0; index < refs.length; index += 4) {
+    rows.push(refs.slice(index, index + 4).map((ref) => ({
+      text: String(ref.n),
+      callback_data: `pending_pick:${ref.n}`,
+    })));
+  }
+  rows.push([{ text: t(language).canceled, callback_data: 'pending:cancel' }]);
+  return { inline_keyboard: rows };
+}
+
+export function formatTelegramCancelKeyboard(language: TelegramLanguage) {
+  return {
+    inline_keyboard: [[{ text: t(language).canceled, callback_data: 'pending:cancel' }]],
+  };
 }
 
 export function formatTelegramMoveDestinationKeyboard(
@@ -402,6 +478,64 @@ export async function getTelegramListContext(chatId: string, contextId?: string 
   const refs = Array.isArray(context?.items) ? context.items as TelegramItemRef[] : [];
   if (!context || !refs.length) return null;
   return { contextId: context.contextId, items: refs };
+}
+
+function normalizeMatchText(value: string | null | undefined) {
+  return String(value ?? '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/ё/g, 'е')
+    .replace(/[^a-zа-яіїєґ0-9\s]/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function meaningfulTokens(value: string) {
+  return normalizeMatchText(value)
+    .split(' ')
+    .filter((token) => token.length >= 2 && !TEXT_MATCH_STOP_WORDS.has(token));
+}
+
+function scoreTelegramRefMatch(ref: TelegramItemRef, rawHint: string) {
+  const hintTokens = meaningfulTokens(rawHint);
+  if (!hintTokens.length) return 0;
+
+  const title = normalizeMatchText(ref.title);
+  const details = normalizeMatchText(ref.details);
+  const hint = hintTokens.join(' ');
+  let score = 0;
+
+  if (title === hint) score += 12;
+  if (title.includes(hint) || hint.includes(title)) score += 8;
+
+  for (const token of hintTokens) {
+    if (title.split(' ').includes(token)) score += 5;
+    else if (title.includes(token)) score += 3;
+    else if (details.includes(token)) score += 1;
+  }
+
+  return score;
+}
+
+export function matchTelegramRefsByText(context: TelegramListContext, rawHint: string | null | undefined) {
+  const hint = rawHint?.trim();
+  if (!hint) return { status: 'no_hint' as const, matches: [] as TelegramItemRef[] };
+
+  const scored = context.items
+    .map((ref) => ({ ref, score: scoreTelegramRefMatch(ref, hint) }))
+    .filter((entry) => entry.score >= 5)
+    .sort((a, b) => b.score - a.score || a.ref.n - b.ref.n);
+
+  if (!scored.length) return { status: 'none' as const, matches: [] as TelegramItemRef[] };
+
+  const topScore = scored[0].score;
+  const strongMatches = scored.filter((entry) => entry.score >= Math.max(5, topScore - 2));
+  if (strongMatches.length === 1 && topScore >= 8) {
+    return { status: 'single' as const, matches: [strongMatches[0].ref] };
+  }
+
+  return { status: 'multiple' as const, matches: strongMatches.map((entry) => entry.ref) };
 }
 
 export async function markTelegramRefDone(userId: number, ref: TelegramItemRef) {

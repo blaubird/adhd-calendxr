@@ -112,6 +112,7 @@ Rules:
 - For create_draft, classify only actual creation intent. Do not classify "what do I have..." questions as create_draft.
 - For mark_done/delete_item/move_item, fill itemNumber if the user clearly gives a list number, otherwise itemTextHint/title. For move_item, fill targetDate/targetTimeStart when clear.
 - If management action is ambiguous, use clarify.
+- Ignore surrounding profanity/filler when extracting itemTextHint; keep the likely item words only.
 - Low confidence must use clarify with a concise clarificationQuestion.
 - "day after tomorrow", "через два дня", "послезавтра", "післязавтра", and "après-demain" mean today + 2 days.
 - "ближайшие X дней", "грядущие X дней", and "next X days" start today and include X total days.
@@ -138,6 +139,10 @@ User: завтра в 14 стоматолог
 {"intent":"create_draft","date":"${tomorrow}","dateRangeStart":null,"dateRangeEnd":null,"timeStart":"14:00","timeEnd":null,"title":"стоматолог","itemNumber":null,"itemTextHint":null,"targetDate":null,"targetTimeStart":null,"targetTimeEnd":null,"confidence":"high","clarificationQuestion":null,"reason":"User describes a new timed calendar item."}
 User: удали стоматолога
 {"intent":"delete_item","date":null,"dateRangeStart":null,"dateRangeEnd":null,"timeStart":null,"timeEnd":null,"title":"стоматолог","itemNumber":null,"itemTextHint":"стоматолог","targetDate":null,"targetTimeStart":null,"targetTimeEnd":null,"confidence":"medium","clarificationQuestion":"Which listed item number should I delete?","reason":"Delete intent without a clear item number needs confirmation or clarification."}
+User: удали чилл нахуй
+{"intent":"delete_item","date":null,"dateRangeStart":null,"dateRangeEnd":null,"timeStart":null,"timeEnd":null,"title":"чилл","itemNumber":null,"itemTextHint":"чилл","targetDate":null,"targetTimeStart":null,"targetTimeEnd":null,"confidence":"medium","clarificationQuestion":"Which listed item number should I delete?","reason":"Delete intent with a text hint requires backend match and confirmation."}
+User: сегодня выполнил чилл
+{"intent":"mark_done","date":"${today}","dateRangeStart":null,"dateRangeEnd":null,"timeStart":null,"timeEnd":null,"title":"чилл","itemNumber":null,"itemTextHint":"чилл","targetDate":null,"targetTimeStart":null,"targetTimeEnd":null,"confidence":"high","clarificationQuestion":null,"reason":"User says an existing item was completed today."}
 User: перенеси стоматолога на завтра в 14
 {"intent":"move_item","date":null,"dateRangeStart":null,"dateRangeEnd":null,"timeStart":null,"timeEnd":null,"title":"стоматолог","itemNumber":null,"itemTextHint":"стоматолог","targetDate":"${tomorrow}","targetTimeStart":"14:00","targetTimeEnd":null,"confidence":"medium","clarificationQuestion":"Which listed item number should I move?","reason":"Move target is clear but source item is ambiguous."}
 User: напиши React app
