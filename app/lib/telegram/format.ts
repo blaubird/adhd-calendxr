@@ -77,14 +77,14 @@ export function formatTelegramItemLine(item: Item, language: TelegramLanguage = 
 export function formatTelegramDraftLine(draft: TelegramDraftLike, language: TelegramLanguage = 'en') {
   const messages = t(language);
   const time = escapeTelegramHtml(formatTelegramTimeRange(draft.timeStart, draft.timeEnd) || messages.noTime);
-  return `⏱ ${time}\n◦ ${escapeTelegramHtml(draft.title)}`;
+  return `${time}\n${escapeTelegramHtml(draft.title)}`;
 }
 
 export function formatTelegramDraftMessage(draft: TelegramDraftLike, language: TelegramLanguage = 'en') {
   const messages = t(language);
-  let text = `☾ Draft\n${escapeTelegramHtml(draft.day)}\n\n${formatTelegramDraftLine(draft, language)}`;
+  let text = `Draft\n${escapeTelegramHtml(draft.day)}\n\n${formatTelegramDraftLine(draft, language)}`;
 
-  if (draft.details) text += `\n◇ ${escapeTelegramHtml(draft.details)}`;
+  if (draft.details) text += `\n${escapeTelegramHtml(draft.details)}`;
   if (draft.recurrenceRule) text += `\n${escapeTelegramHtml(messages.repeats)}: ${escapeTelegramHtml(draft.recurrenceRule)}`;
 
   return text;
@@ -92,7 +92,7 @@ export function formatTelegramDraftMessage(draft: TelegramDraftLike, language: T
 
 export function formatTelegramSavedDraft(draft: TelegramDraftLike, language: TelegramLanguage = 'en') {
   const messages = t(language);
-  return `✓ ${escapeTelegramHtml(messages.savedPrefix)}\n${escapeTelegramHtml(draft.day)}\n\n${formatTelegramDraftLine(draft, language)}`;
+  return `${escapeTelegramHtml(messages.savedPrefix)}\n${escapeTelegramHtml(draft.day)}\n\n${formatTelegramDraftLine(draft, language)}`;
 }
 
 export function formatTelegramDay(

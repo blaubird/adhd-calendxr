@@ -2,7 +2,7 @@ import { TelegramClient } from './client';
 import { env } from 'app/env';
 import { detectTelegramIntent, generateDraftsFromText } from './ai';
 import { loadExpandedItems } from 'app/lib/load-items';
-import { formatDayKey, nowInTz } from 'app/lib/datetime';
+import { formatDayKey, nowInTz, parseDayKey } from 'app/lib/datetime';
 import { addDays } from 'date-fns';
 import {
   cancelTelegramPendingDraft,
@@ -25,11 +25,17 @@ import {
 import {
   buildAndSaveTelegramListContext,
   deleteTelegramRef,
-  formatTelegramNumberedDay,
+  formatTelegramDayList,
+  formatTelegramDayListKeyboard,
+  formatTelegramItemPickerKeyboard,
+  formatTelegramMoveDestinationKeyboard,
   formatTelegramNumberedRange,
   formatTelegramRefPreview,
+  formatTelegramUpcoming,
+  getTelegramListContext,
   markTelegramRefDone,
   moveTelegramRef,
+  parseTelegramDayArgs,
   parseTelegramMoveArgs,
   resolveTelegramItemRef,
 } from './manage';
@@ -160,6 +166,72 @@ async function sendDraftProposals(
   }
 }
 
+async function buildDayList(
+  chatId: string,
+  userId: number,
+  day: string,
+  language: TelegramLanguage,
+  metrics: TelegramRouteMetrics
+) {
+  const dbStartedAt = Date.now();
+  const items = await loadExpandedItems(userId, day, day);
+  metrics.dbQueryDurationMs = durationSince(dbStartedAt);
+  const context = await buildAndSaveTelegramListContext(chatId, `day:${day}`, items);
+  return {
+    text: formatTelegramDayList(day, context, language),
+    replyMarkup: formatTelegramDayListKeyboard(day, context.contextId, language),
+  };
+}
+
+async function sendDayList(
+  client: TelegramClient,
+  chatId: string,
+  userId: number,
+  day: string,
+  language: TelegramLanguage,
+  metrics: TelegramRouteMetrics
+) {
+  const payload = await buildDayList(chatId, userId, day, language, metrics);
+  await timeTelegram(metrics, () => client.sendMessage(chatId, payload.text, {
+    parse_mode: 'HTML',
+    reply_markup: payload.replyMarkup,
+  }));
+}
+
+async function editDayList(
+  client: TelegramClient,
+  chatId: string,
+  messageId: number | undefined,
+  userId: number,
+  day: string,
+  language: TelegramLanguage,
+  metrics: TelegramRouteMetrics
+) {
+  const payload = await buildDayList(chatId, userId, day, language, metrics);
+  if (messageId) {
+    await timeTelegram(metrics, () => client.editMessageText(chatId, messageId, payload.text, {
+      parse_mode: 'HTML',
+      reply_markup: payload.replyMarkup,
+    }));
+  } else {
+    await timeTelegram(metrics, () => client.sendMessage(chatId, payload.text, {
+      parse_mode: 'HTML',
+      reply_markup: payload.replyMarkup,
+    }));
+  }
+}
+
+async function buildWeekList(chatId: string, userId: number, language: TelegramLanguage, metrics: TelegramRouteMetrics) {
+  const now = nowInTz(new Date());
+  const rangeStart = formatDayKey(now);
+  const rangeEnd = formatDayKey(addDays(now, 6));
+  const dbStartedAt = Date.now();
+  const items = await loadExpandedItems(userId, rangeStart, rangeEnd);
+  metrics.dbQueryDurationMs = durationSince(dbStartedAt);
+  const context = await buildAndSaveTelegramListContext(chatId, 'week', items);
+  return formatTelegramNumberedRange(t(language).next7Days, rangeStart, rangeEnd, context, language);
+}
+
 export async function handleTelegramUpdate(update: any, client: TelegramClient, userId: number) {
   const startedAt = Date.now();
   const metrics: TelegramRouteMetrics = {
@@ -192,6 +264,217 @@ export async function handleTelegramUpdate(update: any, client: TelegramClient, 
     const data = String(update.callback_query.data || '');
     const queryId = update.callback_query.id;
     const messageId = update.callback_query.message?.message_id;
+
+    if (data.startsWith('day:')) {
+      const [, action, rawDay] = data.split(':');
+      const baseDay = /^\d{4}-\d{2}-\d{2}$/.test(rawDay || '') ? rawDay : formatDayKey(nowInTz(new Date()));
+
+      if (action === 'week') {
+        const text = await buildWeekList(chatId, userId, language, metrics);
+        await timeTelegram(metrics, () => client.answerCallbackQuery(queryId));
+        if (messageId) {
+          await timeTelegram(metrics, () => client.editMessageText(chatId, messageId, text, { parse_mode: 'HTML' }));
+        } else {
+          await timeTelegram(metrics, () => client.sendMessage(chatId, text, { parse_mode: 'HTML' }));
+        }
+        logTelegramTiming('callback_day_week', startedAt, metrics);
+        return;
+      }
+
+      const targetDay = action === 'prev'
+        ? formatDayKey(addDays(parseDayKey(baseDay), -1))
+        : action === 'next'
+          ? formatDayKey(addDays(parseDayKey(baseDay), 1))
+          : baseDay;
+
+      await timeTelegram(metrics, () => client.answerCallbackQuery(queryId));
+      await editDayList(client, chatId, messageId, userId, targetDay, language, metrics);
+      logTelegramTiming('callback_day_nav', startedAt, metrics);
+      return;
+    }
+
+    if (data.startsWith('act:')) {
+      const [, action, contextId] = data.split(':');
+      if (action !== 'done' && action !== 'delete' && action !== 'move') {
+        await timeTelegram(metrics, () => client.answerCallbackQuery(queryId, messages.unknownAction));
+        logTelegramTiming('callback_item_action', startedAt, metrics);
+        return;
+      }
+
+      const context = await getTelegramListContext(chatId, contextId);
+      if (!context) {
+        await timeTelegram(metrics, () => client.answerCallbackQuery(queryId, messages.noListItems, true));
+        logTelegramTiming('callback_item_action', startedAt, metrics);
+        return;
+      }
+
+      const actionLabel = action === 'done'
+        ? messages.actionDone
+        : action === 'delete'
+          ? messages.actionDelete
+          : messages.actionMove;
+      await timeTelegram(metrics, () => client.answerCallbackQuery(queryId));
+      if (messageId) {
+        await timeTelegram(metrics, () => client.editMessageText(chatId, messageId, messages.chooseItem(actionLabel), {
+          parse_mode: 'HTML',
+          reply_markup: formatTelegramItemPickerKeyboard(action, context, language),
+        }));
+      } else {
+        await timeTelegram(metrics, () => client.sendMessage(chatId, messages.chooseItem(actionLabel), {
+          parse_mode: 'HTML',
+          reply_markup: formatTelegramItemPickerKeyboard(action, context, language),
+        }));
+      }
+      logTelegramTiming('callback_item_action', startedAt, metrics);
+      return;
+    }
+
+    if (data.startsWith('pick:')) {
+      const [, action, contextId, rawNumber] = data.split(':');
+      const itemNumber = parseItemNumber(rawNumber);
+      const resolved = itemNumber ? await resolveTelegramItemRef(chatId, itemNumber, contextId) : null;
+      if (!itemNumber || !resolved) {
+        await timeTelegram(metrics, () => client.answerCallbackQuery(queryId, messages.couldNotFindItem, true));
+        logTelegramTiming('callback_item_pick', startedAt, metrics);
+        return;
+      }
+
+      if (action === 'done') {
+        const dbStartedAt = Date.now();
+        const result = await markTelegramRefDone(userId, resolved.ref);
+        metrics.dbQueryDurationMs = durationSince(dbStartedAt);
+        if (!result) {
+          await timeTelegram(metrics, () => client.answerCallbackQuery(queryId, messages.couldNotFindItem, true));
+          logTelegramTiming('callback_item_done', startedAt, metrics);
+          return;
+        }
+        const title = result.status === 'already_done' ? messages.alreadyDone : messages.doneTitle;
+        await timeTelegram(metrics, () => client.answerCallbackQuery(queryId, title));
+        if (messageId) {
+          await timeTelegram(metrics, () => client.editMessageText(chatId, messageId, `${title}\n\n${formatTelegramRefPreview(resolved.ref)}`, {
+            parse_mode: 'HTML',
+          }));
+        }
+        logTelegramTiming('callback_item_done', startedAt, metrics);
+        return;
+      }
+
+      if (action === 'delete') {
+        await timeTelegram(metrics, () => client.answerCallbackQuery(queryId));
+        const text = `${messages.deletePrompt}\n\n${formatTelegramRefPreview(resolved.ref)}`;
+        const replyMarkup = {
+          inline_keyboard: [[
+            { text: messages.confirmDelete, callback_data: `item_delete_confirm:${resolved.contextId}:${itemNumber}` },
+            { text: messages.canceled, callback_data: 'item_delete_cancel' },
+          ]],
+        };
+        if (messageId) {
+          await timeTelegram(metrics, () => client.editMessageText(chatId, messageId, text, {
+            parse_mode: 'HTML',
+            reply_markup: replyMarkup,
+          }));
+        } else {
+          await timeTelegram(metrics, () => client.sendMessage(chatId, text, {
+            parse_mode: 'HTML',
+            reply_markup: replyMarkup,
+          }));
+        }
+        logTelegramTiming('callback_item_delete_pick', startedAt, metrics);
+        return;
+      }
+
+      if (action === 'move') {
+        const selectedNumber = itemNumber;
+        await timeTelegram(metrics, () => client.answerCallbackQuery(queryId));
+        if (messageId) {
+          await timeTelegram(metrics, () => client.editMessageText(chatId, messageId, messages.moveDestinationTitle, {
+            parse_mode: 'HTML',
+            reply_markup: formatTelegramMoveDestinationKeyboard(resolved.contextId || contextId, selectedNumber, language),
+          }));
+        } else {
+          await timeTelegram(metrics, () => client.sendMessage(chatId, messages.moveDestinationTitle, {
+            parse_mode: 'HTML',
+            reply_markup: formatTelegramMoveDestinationKeyboard(resolved.contextId || contextId, selectedNumber, language),
+          }));
+        }
+        logTelegramTiming('callback_item_move_pick', startedAt, metrics);
+        return;
+      }
+    }
+
+    if (data.startsWith('move:')) {
+      const [, contextId, rawNumber, target] = data.split(':');
+      const itemNumber = parseItemNumber(rawNumber);
+      const resolved = itemNumber ? await resolveTelegramItemRef(chatId, itemNumber, contextId) : null;
+      if (!itemNumber || !resolved) {
+        await timeTelegram(metrics, () => client.answerCallbackQuery(queryId, messages.couldNotFindItem, true));
+        logTelegramTiming('callback_item_move', startedAt, metrics);
+        return;
+      }
+
+      if (target === 'type') {
+        const selectedNumber = itemNumber;
+        await timeTelegram(metrics, () => client.answerCallbackQuery(queryId));
+        const text = messages.moveTypeDatePrompt(selectedNumber);
+        if (messageId) {
+          await timeTelegram(metrics, () => client.editMessageText(chatId, messageId, text));
+        } else {
+          await timeTelegram(metrics, () => client.sendMessage(chatId, text));
+        }
+        logTelegramTiming('callback_item_move_type', startedAt, metrics);
+        return;
+      }
+
+      const now = nowInTz(new Date());
+      const targetDay = target === 'today'
+        ? formatDayKey(now)
+        : target === 'tomorrow'
+          ? formatDayKey(addDays(now, 1))
+          : target === 'plus2'
+            ? formatDayKey(addDays(now, 2))
+            : null;
+
+      if (!targetDay) {
+        await timeTelegram(metrics, () => client.answerCallbackQuery(queryId, messages.unknownAction));
+        logTelegramTiming('callback_item_move', startedAt, metrics);
+        return;
+      }
+
+      const dbStartedAt = Date.now();
+      const result = await moveTelegramRef(userId, resolved.ref, targetDay, null);
+      metrics.dbQueryDurationMs = durationSince(dbStartedAt);
+      if (!result) {
+        await timeTelegram(metrics, () => client.answerCallbackQuery(queryId, messages.couldNotFindItem, true));
+        logTelegramTiming('callback_item_move', startedAt, metrics);
+        return;
+      }
+      if (result.status === 'unsupported_recurring') {
+        await timeTelegram(metrics, () => client.answerCallbackQuery(queryId, messages.recurringMoveUnsupported, true));
+        logTelegramTiming('callback_item_move', startedAt, metrics);
+        return;
+      }
+
+      await timeTelegram(metrics, () => client.answerCallbackQuery(queryId, messages.movedTitle));
+      if (messageId) {
+        await timeTelegram(metrics, () => client.editMessageText(
+          chatId,
+          messageId,
+          `${messages.movedTitle}\n\n${formatTelegramRefPreview(result.ref)}`,
+          { parse_mode: 'HTML' }
+        ));
+      }
+      logTelegramTiming('callback_item_move', startedAt, metrics);
+      return;
+    }
+
+    if (data === 'flow:cancel') {
+      await timeTelegram(metrics, () => client.answerCallbackQuery(queryId, messages.canceled));
+      if (messageId) {
+        await timeTelegram(metrics, () => client.editMessageText(chatId, messageId, messages.canceled));
+      }
+      logTelegramTiming('callback_item_flow_cancel', startedAt, metrics);
+      return;
+    }
 
     if (data.startsWith('item_delete_confirm:')) {
       const [, contextId, rawNumber] = data.split(':');
@@ -376,11 +659,7 @@ export async function handleTelegramUpdate(update: any, client: TelegramClient, 
     if (command === 'today' || command === 'list') {
       const now = nowInTz(new Date());
       const dayStr = formatDayKey(now);
-      const dbStartedAt = Date.now();
-      const items = await loadExpandedItems(userId, dayStr, dayStr);
-      metrics.dbQueryDurationMs = durationSince(dbStartedAt);
-      const context = await buildAndSaveTelegramListContext(chatId, 'today', items);
-      await timeTelegram(metrics, () => client.sendMessage(chatId, formatTelegramNumberedDay(messages.dayToday, dayStr, context, language), { parse_mode: 'HTML' }));
+      await sendDayList(client, chatId, userId, dayStr, language, metrics);
       logTelegramTiming('command', startedAt, metrics);
       return;
     }
@@ -388,24 +667,38 @@ export async function handleTelegramUpdate(update: any, client: TelegramClient, 
     if (command === 'tomorrow') {
       const tomorrow = addDays(nowInTz(new Date()), 1);
       const dayStr = formatDayKey(tomorrow);
+      await sendDayList(client, chatId, userId, dayStr, language, metrics);
+      logTelegramTiming('command', startedAt, metrics);
+      return;
+    }
+
+    if (command === 'day') {
+      const day = parseTelegramDayArgs(commandArgs(text));
+      if (!day) {
+        await timeTelegram(metrics, () => client.sendMessage(chatId, `${messages.couldNotUnderstandDateTime}\nUse: /day today, /day tomorrow, /day friday, /day 2026-04-29`));
+        logTelegramTiming('command', startedAt, metrics);
+        return;
+      }
+      await sendDayList(client, chatId, userId, day, language, metrics);
+      logTelegramTiming('command', startedAt, metrics);
+      return;
+    }
+
+    if (command === 'upcoming') {
+      const now = nowInTz(new Date());
+      const today = formatDayKey(now);
+      const tomorrow = formatDayKey(addDays(now, 1));
       const dbStartedAt = Date.now();
-      const items = await loadExpandedItems(userId, dayStr, dayStr);
+      const items = await loadExpandedItems(userId, today, tomorrow);
       metrics.dbQueryDurationMs = durationSince(dbStartedAt);
-      const context = await buildAndSaveTelegramListContext(chatId, 'tomorrow', items);
-      await timeTelegram(metrics, () => client.sendMessage(chatId, formatTelegramNumberedDay(messages.dayTomorrow, dayStr, context, language), { parse_mode: 'HTML' }));
+      await timeTelegram(metrics, () => client.sendMessage(chatId, formatTelegramUpcoming(items, language, now), { parse_mode: 'HTML' }));
       logTelegramTiming('command', startedAt, metrics);
       return;
     }
 
     if (command === 'week') {
-      const now = nowInTz(new Date());
-      const rangeStart = formatDayKey(now);
-      const rangeEnd = formatDayKey(addDays(now, 6));
-      const dbStartedAt = Date.now();
-      const items = await loadExpandedItems(userId, rangeStart, rangeEnd);
-      metrics.dbQueryDurationMs = durationSince(dbStartedAt);
-      const context = await buildAndSaveTelegramListContext(chatId, 'week', items);
-      await timeTelegram(metrics, () => client.sendMessage(chatId, formatTelegramNumberedRange(messages.next7Days, rangeStart, rangeEnd, context, language), { parse_mode: 'HTML' }));
+      const weekText = await buildWeekList(chatId, userId, language, metrics);
+      await timeTelegram(metrics, () => client.sendMessage(chatId, weekText, { parse_mode: 'HTML' }));
       logTelegramTiming('command', startedAt, metrics);
       return;
     }

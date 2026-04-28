@@ -1,4 +1,4 @@
-import { addDays, addMinutes, format } from 'date-fns';
+import { addDays, addMinutes, differenceInMinutes, format } from 'date-fns';
 
 import {
   addExdate,
@@ -99,7 +99,7 @@ function toRef(item: Item, n: number): TelegramItemRef {
   };
 }
 
-function formatDateLine(day: string, language: TelegramLanguage) {
+function formatDateLine(day: string, _language: TelegramLanguage) {
   return `${format(parseDayKey(day), 'd MMM')} · ${TIMEZONE}`;
 }
 
@@ -123,6 +123,95 @@ export async function buildAndSaveTelegramListContext(
   return { contextId: context.contextId, items: refs };
 }
 
+export function parseTelegramDayArgs(args: string[]) {
+  const token = args[0]?.trim();
+  const now = nowInTz(new Date());
+  if (!token || token.toLowerCase() === 'today') return formatDayKey(now);
+
+  const normalized = token.toLowerCase();
+  if (normalized === 'tomorrow') return formatDayKey(addDays(now, 1));
+  if (/^\d{4}-\d{2}-\d{2}$/.test(token)) return token;
+
+  return parseWeekday(normalized, now);
+}
+
+export function telegramDayLabel(day: string, language: TelegramLanguage) {
+  const messages = t(language);
+  const today = formatDayKey(nowInTz(new Date()));
+  const tomorrow = formatDayKey(addDays(parseDayKey(today), 1));
+  if (day === today) return messages.dayToday;
+  if (day === tomorrow) return messages.dayTomorrow;
+  return format(parseDayKey(day), 'EEEE');
+}
+
+export function formatTelegramDayList(
+  day: string,
+  context: TelegramListContext,
+  language: TelegramLanguage
+) {
+  return formatTelegramNumberedDay(telegramDayLabel(day, language), day, context, language);
+}
+
+export function formatTelegramDayListKeyboard(
+  day: string,
+  contextId: string,
+  language: TelegramLanguage
+) {
+  const messages = t(language);
+  return {
+    inline_keyboard: [
+      [
+        { text: messages.prev, callback_data: `day:prev:${day}` },
+        { text: messages.next, callback_data: `day:next:${day}` },
+        { text: messages.week, callback_data: `day:week:${day}` },
+      ],
+      [
+        { text: messages.actionDone, callback_data: `act:done:${contextId}` },
+        { text: messages.actionMove, callback_data: `act:move:${contextId}` },
+        { text: messages.actionDelete, callback_data: `act:delete:${contextId}` },
+      ],
+      [{ text: messages.refresh, callback_data: `day:refresh:${day}` }],
+    ],
+  };
+}
+
+export function formatTelegramItemPickerKeyboard(
+  action: 'done' | 'delete' | 'move',
+  context: TelegramListContext,
+  language: TelegramLanguage
+) {
+  const rows: Array<Array<{ text: string; callback_data: string }>> = [];
+  for (let index = 0; index < context.items.length; index += 4) {
+    rows.push(context.items.slice(index, index + 4).map((ref) => ({
+      text: String(ref.n),
+      callback_data: `pick:${action}:${context.contextId}:${ref.n}`,
+    })));
+  }
+  rows.push([{ text: t(language).canceled, callback_data: 'flow:cancel' }]);
+  return { inline_keyboard: rows };
+}
+
+export function formatTelegramMoveDestinationKeyboard(
+  contextId: string,
+  itemNumber: number,
+  language: TelegramLanguage
+) {
+  const messages = t(language);
+  return {
+    inline_keyboard: [
+      [
+        { text: messages.moveToday, callback_data: `move:${contextId}:${itemNumber}:today` },
+        { text: messages.moveTomorrow, callback_data: `move:${contextId}:${itemNumber}:tomorrow` },
+      ],
+      [
+        { text: messages.movePlusTwoDays, callback_data: `move:${contextId}:${itemNumber}:plus2` },
+        { text: messages.moveTypeDate, callback_data: `move:${contextId}:${itemNumber}:type` },
+      ],
+      [{ text: messages.canceled, callback_data: 'flow:cancel' }],
+    ],
+  };
+}
+
 export function formatTelegramNumberedDay(
   label: string,
   day: string,
@@ -144,6 +233,79 @@ export function formatTelegramNumberedDay(
   }
   if (!timed.length && !untimed.length) {
     sections.push(`${escapeTelegramHtml(messages.nothingPlanned)}\n${escapeTelegramHtml(messages.emptyDay)}`);
+  }
+
+  return sections.join('\n\n');
+}
+
+function minutesUntilLabel(totalMinutes: number, tomorrow: boolean) {
+  const clamped = Math.max(0, totalMinutes);
+  const hours = Math.floor(clamped / 60);
+  const minutes = clamped % 60;
+  const parts: string[] = [];
+  if (hours) parts.push(`${hours}h`);
+  if (minutes || !hours) parts.push(`${minutes}m`);
+  return tomorrow ? `tomorrow in ${parts.join(' ')}` : `in ${parts.join(' ')}`;
+}
+
+function wallDateTime(day: string, time: string) {
+  const [hours, minutes] = time.split(':').map(Number);
+  const date = parseDayKey(day);
+  date.setUTCHours(hours || 0, minutes || 0, 0, 0);
+  return date;
+}
+
+function formatUpcomingItemBlock(ref: TelegramItemRef, now: Date, tomorrow: boolean) {
+  const line = formatRefLine(ref);
+  if (!ref.timeStart) return line;
+  const minutes = differenceInMinutes(wallDateTime(ref.day, ref.timeStart), now);
+  return `${line}\n${minutesUntilLabel(minutes, tomorrow)}`;
+}
+
+export function formatTelegramUpcoming(items: Item[], language: TelegramLanguage, now = nowInTz(new Date())) {
+  const messages = t(language);
+  const today = formatDayKey(now);
+  const tomorrow = formatDayKey(addDays(parseDayKey(today), 1));
+  const upcomingItems = sortForManagement(items).filter((item) => {
+    if (item.day === tomorrow) return true;
+    if (item.day !== today) return false;
+    return !item.timeStart || wallDateTime(item.day, item.timeStart) >= now;
+  });
+  const refs = upcomingItems.map((item, index) => toRef(item, index + 1));
+  const todayRefs = refs.filter((ref) => ref.day === today);
+  const tomorrowRefs = refs.filter((ref) => ref.day === tomorrow);
+  const todayTimed = todayRefs.filter((ref) => ref.timeStart && wallDateTime(ref.day, ref.timeStart) >= now);
+  const todayUntimed = todayRefs.filter((ref) => !ref.timeStart);
+  const tomorrowTimed = tomorrowRefs.filter((ref) => ref.timeStart);
+  const tomorrowUntimed = tomorrowRefs.filter((ref) => !ref.timeStart);
+  const sections = [
+    `${escapeTelegramHtml(messages.upcomingTitle)}\n${escapeTelegramHtml(messages.upcomingScope)}`,
+  ];
+
+  if (todayTimed.length || todayUntimed.length) {
+    const blocks: string[] = [];
+    if (todayTimed.length) {
+      blocks.push(todayTimed.map((ref) => formatUpcomingItemBlock(ref, now, false)).join('\n\n'));
+    }
+    if (todayUntimed.length) {
+      blocks.push(`${escapeTelegramHtml(messages.untimed)}\n\n${todayUntimed.map(formatRefLine).join('\n')}`);
+    }
+    sections.push(`${escapeTelegramHtml(messages.dayToday)}\n\n${blocks.join('\n\n')}`);
+  }
+
+  if (tomorrowTimed.length || tomorrowUntimed.length) {
+    const blocks: string[] = [];
+    if (tomorrowTimed.length) {
+      blocks.push(tomorrowTimed.map((ref) => formatUpcomingItemBlock(ref, now, true)).join('\n\n'));
+    }
+    if (tomorrowUntimed.length) {
+      blocks.push(`${escapeTelegramHtml(messages.untimed)}\n\n${tomorrowUntimed.map(formatRefLine).join('\n')}`);
+    }
+    sections.push(`${escapeTelegramHtml(messages.dayTomorrow)}\n\n${blocks.join('\n\n')}`);
+  }
+
+  if (sections.length === 1) {
+    sections.push(escapeTelegramHtml(messages.noUpcoming));
   }
 
   return sections.join('\n\n');
@@ -233,6 +395,13 @@ export async function resolveTelegramItemRef(chatId: string, number: number, con
   const refs = Array.isArray(context?.items) ? context.items as TelegramItemRef[] : [];
   const ref = refs.find((item) => item.n === number);
   return ref ? { ref, contextId: context?.contextId ?? null } : null;
+}
+
+export async function getTelegramListContext(chatId: string, contextId?: string | null): Promise<TelegramListContext | null> {
+  const context = await getTelegramItemContext(chatId, contextId);
+  const refs = Array.isArray(context?.items) ? context.items as TelegramItemRef[] : [];
+  if (!context || !refs.length) return null;
+  return { contextId: context.contextId, items: refs };
 }
 
 export async function markTelegramRefDone(userId: number, ref: TelegramItemRef) {
