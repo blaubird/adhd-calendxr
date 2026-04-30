@@ -2,23 +2,19 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Item, PlanningPeriod } from 'app/types';
-import { parseDayKey, formatTimeValue, formatDateFull, formatTimeRange, formatDayKey, nowInTz } from 'app/lib/datetime';
+import { parseDayKey, formatDateFull, formatTimeRange } from 'app/lib/datetime';
 import {
   DndContext,
-  KeyboardSensor,
+  DragOverlay,
   PointerSensor,
+  useDraggable,
   useDroppable,
   useSensor,
   useSensors,
   DragEndEvent,
+  DragOverEvent,
+  DragStartEvent,
 } from '@dnd-kit/core';
-import {
-  SortableContext,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
-  useSortable,
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
 
 const DEFAULT_COLOR = '#ff96f5';
 const RECURRING_COLOR = '#67eb67';
@@ -29,6 +25,9 @@ const PERIODS: Array<{ key: PlanningPeriod; start: number; end: number }> = [
   { key: 'day', start: 12, end: 18 },
   { key: 'evening', start: 18, end: 24 },
 ];
+
+const EVENT_ORDER_STEP = 1000;
+const DEFAULT_TASK_ORDER_STEP = 500;
 
 const PERIOD_LABELS = {
   en: { morning: 'Morning', day: 'Day', evening: 'Evening' },
@@ -75,12 +74,70 @@ function sortTasksByPlanningOrder(items: Item[]) {
   });
 }
 
-function sortTimed(items: Item[]) {
-  return [...items].sort((a, b) => {
-    const timeCompare = (a.timeStart || '').localeCompare(b.timeStart || '');
-    if (timeCompare !== 0) return timeCompare;
-    return String(a.id).localeCompare(String(b.id));
-  });
+function timeOrderKey(timeStart: string) {
+  const [hour, minute] = timeStart.split(':').map(Number);
+  return (hour * 60 + minute) * EVENT_ORDER_STEP;
+}
+
+type PeriodRow = {
+  id: string;
+  item: Item;
+  type: 'event' | 'task';
+  orderKey: number;
+};
+
+function buildPeriodRows(items: Item[], period: PlanningPeriod, draggingId?: string | null): PeriodRow[] {
+  return items
+    .filter((item) => itemPeriod(item) === period)
+    .filter((item) => String(item.id) !== draggingId)
+    .map((item): PeriodRow => ({
+      id: String(item.id),
+      item,
+      type: item.timeStart ? 'event' : 'task',
+      orderKey: item.timeStart
+        ? timeOrderKey(item.timeStart)
+        : item.planningOrder ?? item.order ?? 0,
+    }))
+    .sort((a, b) => {
+      if (a.orderKey !== b.orderKey) return a.orderKey - b.orderKey;
+      if (a.type !== b.type) return a.type === 'event' ? -1 : 1;
+      return a.id.localeCompare(b.id);
+    });
+}
+
+function allocateTaskOrders(rows: PeriodRow[], period: PlanningPeriod) {
+  const updates: Item[] = [];
+  let index = 0;
+
+  while (index < rows.length) {
+    if (rows[index].type !== 'task') {
+      index += 1;
+      continue;
+    }
+
+    const runStart = index;
+    while (index < rows.length && rows[index].type === 'task') {
+      index += 1;
+    }
+    const runEnd = index;
+    const run = rows.slice(runStart, runEnd);
+    const previousEvent = [...rows.slice(0, runStart)].reverse().find((row) => row.type === 'event');
+    const nextEvent = rows.slice(runEnd).find((row) => row.type === 'event');
+    const previousKey = previousEvent?.orderKey ?? ((nextEvent?.orderKey ?? 0) - (run.length + 1) * DEFAULT_TASK_ORDER_STEP);
+    const nextKey = nextEvent?.orderKey ?? (previousKey + (run.length + 1) * DEFAULT_TASK_ORDER_STEP);
+    const rawStep = Math.floor((nextKey - previousKey) / (run.length + 1));
+    const step = rawStep > 0 ? rawStep : DEFAULT_TASK_ORDER_STEP;
+
+    run.forEach((row, runIndex) => {
+      updates.push({
+        ...row.item,
+        planningPeriod: period,
+        planningOrder: previousKey + step * (runIndex + 1),
+      });
+    });
+  }
+
+  return updates;
 }
 
 function parseTimeEdit(value: string): { timeStart: string | null; timeEnd: string | null } | null {
@@ -138,6 +195,7 @@ function ItemCard({
   onInlineUpdate,
   dragHandleProps,
   highlighted,
+  dragging,
 }: {
   item: Item;
   onEdit: () => void;
@@ -148,6 +206,7 @@ function ItemCard({
   onInlineUpdate: (item: Item, patch: Partial<Item>) => Promise<boolean>;
   dragHandleProps?: React.HTMLAttributes<HTMLButtonElement>;
   highlighted?: boolean;
+  dragging?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [deletePickerOpen, setDeletePickerOpen] = useState(false);
@@ -216,7 +275,7 @@ function ItemCard({
     <>
       <article
         ref={cardRef}
-        className={`day-panel-card ${isDone ? 'day-panel-card--done' : ''} ${highlighted ? 'day-panel-card--highlighted' : ''}`}
+        className={`day-panel-card ${isDone ? 'day-panel-card--done' : ''} ${highlighted ? 'day-panel-card--highlighted' : ''} ${dragging ? 'day-panel-card--dragging' : ''}`}
         style={{ borderLeftColor: accentColor }}
       >
         <div
@@ -444,14 +503,15 @@ function MoveItemDialog({
   );
 }
 
-function SortableItemCard(props: React.ComponentProps<typeof ItemCard>) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+function DraggableItemCard(props: React.ComponentProps<typeof ItemCard>) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: String(props.item.id),
+    disabled: !isEditableNormalItem(props.item) || Boolean(props.item.timeStart),
   });
 
   const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
+    transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+    transition: isDragging ? undefined : 'transform 160ms ease, opacity 160ms ease',
     opacity: isDragging ? 0.6 : 1,
     zIndex: isDragging ? 10 : 0,
     position: 'relative' as const,
@@ -459,7 +519,19 @@ function SortableItemCard(props: React.ComponentProps<typeof ItemCard>) {
 
   return (
     <div ref={setNodeRef} style={style}>
-      <ItemCard {...props} dragHandleProps={{ ...attributes, ...listeners }} />
+      <ItemCard {...props} dragging={isDragging} dragHandleProps={{ ...attributes, ...listeners }} />
+    </div>
+  );
+}
+
+function DropSlot({ id, active }: { id: string; active: boolean }) {
+  const { setNodeRef, isOver } = useDroppable({ id });
+  return (
+    <div
+      ref={setNodeRef}
+      className={`day-panel-drop-slot ${active ? 'day-panel-drop-slot--active' : ''} ${isOver ? 'day-panel-drop-slot--over' : ''}`}
+    >
+      <span />
     </div>
   );
 }
@@ -479,30 +551,6 @@ function DroppableSection({
       {children}
     </section>
   );
-}
-
-function buildNextUp(items: Item[], selectedDay: string) {
-  const active = items.filter((item) => item.status !== 'done' && item.status !== 'canceled');
-  const timed = sortTimed(active.filter((item) => item.timeStart));
-  const now = nowInTz(new Date());
-  const today = formatDayKey(now);
-  const nowMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
-  const upcomingTimed = timed.find((item) => {
-    if (selectedDay !== today) return true;
-    const [h, m] = item.timeStart!.split(':').map(Number);
-    return h * 60 + m >= nowMinutes;
-  });
-  const item = upcomingTimed ?? active.find((candidate) => !candidate.timeStart);
-  if (!item) return null;
-  if (!item.timeStart) return { item, relative: 'task' };
-  const [hour, minute] = item.timeStart.split(':').map(Number);
-  const diffMinutes = selectedDay === today ? hour * 60 + minute - nowMinutes : null;
-  const relative = diffMinutes == null
-    ? formatDateFull(parseDayKey(selectedDay))
-    : diffMinutes <= 0
-      ? 'now'
-      : `in ${Math.floor(diffMinutes / 60) ? `${Math.floor(diffMinutes / 60)}h ` : ''}${diffMinutes % 60}m`;
-  return { item, relative };
 }
 
 export function DayPanel({
@@ -542,6 +590,8 @@ export function DayPanel({
   const [movingItem, setMovingItem] = useState<Item | null>(null);
   const [showDone, setShowDone] = useState(true);
   const [language, setLanguage] = useState<PeriodLanguage>('en');
+  const [activeDragId, setActiveDragId] = useState<string | null>(null);
+  const [overSlotId, setOverSlotId] = useState<string | null>(null);
 
   useEffect(() => {
     setShowDone(true);
@@ -557,57 +607,75 @@ export function DayPanel({
     [items, showDone]
   );
   const unplannedTasks = useMemo(
-    () => sortTasksByPlanningOrder(visibleItems.filter((item) => !item.timeStart && !item.planningPeriod)),
-    [visibleItems]
+    () => sortTasksByPlanningOrder(
+      visibleItems.filter((item) => !item.timeStart && !item.planningPeriod && String(item.id) !== activeDragId)
+    ),
+    [visibleItems, activeDragId]
   );
-  const nextUp = useMemo(() => buildNextUp(items, selectedDay), [items, selectedDay]);
+  const activeDragItem = useMemo(
+    () => items.find((item) => String(item.id) === activeDragId) ?? null,
+    [items, activeDragId]
+  );
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } })
   );
+
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveDragId(String(event.active.id));
+  };
+
+  const handleDragOver = (event: DragOverEvent) => {
+    const id = event.over ? String(event.over.id) : null;
+    setOverSlotId(id?.startsWith('slot:') ? id : null);
+  };
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
+    setActiveDragId(null);
+    setOverSlotId(null);
     if (!over) return;
     const activeItem = items.find((item) => String(item.id) === String(active.id));
     if (!activeItem || activeItem.timeStart || !isEditableNormalItem(activeItem)) return;
 
-    const allTasks = items.filter((item) => !item.timeStart && isEditableNormalItem(item));
     const overId = String(over.id);
-    const periodIds = ['unplanned', ...PERIODS.map((period) => period.key)];
-    const overItem = allTasks.find((item) => String(item.id) === overId);
-    const targetPeriod = periodIds.includes(overId)
-      ? (overId === 'unplanned' ? null : overId as PlanningPeriod)
-      : overItem?.planningPeriod ?? null;
-    const sourcePeriod = activeItem.planningPeriod ?? null;
-    const sourceList = sortTasksByPlanningOrder(allTasks.filter((item) => (item.planningPeriod ?? null) === sourcePeriod && String(item.id) !== String(active.id)));
-    const targetListBase = sortTasksByPlanningOrder(allTasks.filter((item) => (item.planningPeriod ?? null) === targetPeriod && String(item.id) !== String(active.id)));
-    const overIndex = overItem ? targetListBase.findIndex((item) => String(item.id) === String(overItem.id)) : -1;
-    const targetIndex = overIndex >= 0 ? overIndex : targetListBase.length;
-    const targetList = [...targetListBase];
-    targetList.splice(targetIndex, 0, { ...activeItem, planningPeriod: targetPeriod, planningOrder: targetIndex });
+    if (!overId.startsWith('slot:')) return;
+    const [, rawPeriod, rawIndex] = overId.split(':');
+    const targetPeriod = rawPeriod === 'unplanned' ? null : rawPeriod as PlanningPeriod;
+    const targetIndex = Number(rawIndex);
+    if (!Number.isInteger(targetIndex) || targetIndex < 0) return;
 
-    const updatedTarget = targetList.map((item, index) => ({
-        ...item,
-        planningPeriod: targetPeriod,
-        planningOrder: index,
-      }));
-    const affected = sourcePeriod === targetPeriod
-      ? updatedTarget
-      : [
-          ...sourceList.map((item, index) => ({ ...item, planningOrder: index })),
-          ...updatedTarget,
-        ];
+    if (!targetPeriod) {
+      const targetTasks = sortTasksByPlanningOrder(
+        items.filter((item) => !item.timeStart && !item.planningPeriod && isEditableNormalItem(item) && String(item.id) !== String(active.id))
+      );
+      const nextTasks = [...targetTasks];
+      nextTasks.splice(Math.min(targetIndex, nextTasks.length), 0, {
+        ...activeItem,
+        planningPeriod: null,
+        planningOrder: targetIndex,
+      });
+      await onPlanItems(nextTasks.map((item, index) => ({ ...item, planningPeriod: null, planningOrder: index })));
+      return;
+    }
 
-    await onPlanItems(affected);
+    const rows = buildPeriodRows(items, targetPeriod, String(active.id));
+    const nextRows = [...rows];
+    nextRows.splice(Math.min(targetIndex, nextRows.length), 0, {
+      id: String(activeItem.id),
+      item: { ...activeItem, planningPeriod: targetPeriod, timeStart: null, timeEnd: null },
+      type: 'task',
+      orderKey: 0,
+    });
+
+    await onPlanItems(allocateTaskOrders(nextRows, targetPeriod));
   };
 
   const dayDate = parseDayKey(selectedDay);
   const dayLabel = formatDateFull(dayDate);
   const dayOfWeek = new Intl.DateTimeFormat('en-GB', { weekday: 'long', timeZone: 'UTC' }).format(dayDate);
 
-  const renderCard = (item: Item, sortable = false) => {
+  const renderCard = (item: Item, draggable = false) => {
     const common = {
       item,
       onEdit: () => onEdit(item),
@@ -618,8 +686,8 @@ export function DayPanel({
       onInlineUpdate,
       highlighted: highlightedItemId === String(item.id),
     };
-    return sortable
-      ? <SortableItemCard key={String(item.id)} {...common} />
+    return draggable
+      ? <DraggableItemCard key={String(item.id)} {...common} />
       : <ItemCard key={String(item.id)} {...common} />;
   };
 
@@ -651,58 +719,84 @@ export function DayPanel({
         </button>
       </div>
 
-      {nextUp && (
-        <div className="day-panel-next-up">
-          <p className="day-panel-section-kicker">Next up</p>
-          <p className="day-panel-next-title">
-            {nextUp.item.timeStart ? `${formatTimeValue(nextUp.item.timeStart)} ` : ''}
-            {nextUp.item.title}
-          </p>
-          <p className="day-panel-next-meta">{nextUp.relative}</p>
-        </div>
-      )}
-
       <div key={selectedDay} className="day-panel-items animate-fade-in">
         {loading && <p className="day-panel-empty">Loading...</p>}
         {!loading && visibleItems.length === 0 && (
           <p className="day-panel-empty">{items.length ? 'Done items are hidden.' : 'Nothing planned for this day.'}</p>
         )}
 
-        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-          <DroppableSection id="unplanned" className="day-panel-section">
+        <DndContext
+          sensors={sensors}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDragEnd={handleDragEnd}
+          onDragCancel={() => {
+            setActiveDragId(null);
+            setOverSlotId(null);
+          }}
+        >
+          <DroppableSection
+            id="unplanned"
+            className={`day-panel-section ${overSlotId?.startsWith('slot:unplanned:') ? 'day-panel-section--slot-over' : ''}`}
+          >
             <div className="day-panel-section-header">
               <p className="day-panel-section-title">Tasks</p>
               <span>{unplannedTasks.length}</span>
             </div>
-            <SortableContext items={unplannedTasks.map((item) => String(item.id))} strategy={verticalListSortingStrategy}>
-              <div className="day-panel-section-list">
-                {unplannedTasks.length === 0 && <p className="day-panel-section-empty">No unplanned tasks.</p>}
-                {unplannedTasks.map((item) => renderCard(item, isEditableNormalItem(item)))}
-              </div>
-            </SortableContext>
+            <div className="day-panel-section-list">
+              {unplannedTasks.length === 0 && <p className="day-panel-section-empty">No unplanned tasks.</p>}
+              <DropSlot id="slot:unplanned:0" active={Boolean(activeDragId)} />
+              {unplannedTasks.map((item, index) => (
+                <React.Fragment key={String(item.id)}>
+                  {renderCard(item, isEditableNormalItem(item))}
+                  <DropSlot id={`slot:unplanned:${index + 1}`} active={Boolean(activeDragId)} />
+                </React.Fragment>
+              ))}
+            </div>
           </DroppableSection>
 
           {PERIODS.map((period) => {
-            const periodTasks = sortTasksByPlanningOrder(visibleItems.filter((item) => !item.timeStart && item.planningPeriod === period.key));
-            const periodTimed = sortTimed(visibleItems.filter((item) => item.timeStart && itemPeriod(item) === period.key));
+            const rows = buildPeriodRows(visibleItems, period.key, activeDragId);
+            const hasRows = rows.length > 0;
             return (
-              <DroppableSection key={period.key} id={period.key} className="day-panel-section day-panel-period-section">
+              <DroppableSection
+                key={period.key}
+                id={period.key}
+                className={`day-panel-section day-panel-period-section ${overSlotId?.startsWith(`slot:${period.key}:`) ? 'day-panel-section--slot-over' : ''}`}
+              >
                 <div className="day-panel-section-header">
                   <p className="day-panel-section-title">{labels[period.key]}</p>
                   <span>{period.start}:00-{period.end}:00</span>
                 </div>
-                <SortableContext items={periodTasks.map((item) => String(item.id))} strategy={verticalListSortingStrategy}>
-                  <div className="day-panel-section-list">
-                    {periodTimed.length === 0 && periodTasks.length === 0 && (
-                      <p className="day-panel-section-empty">Drop tasks here.</p>
-                    )}
-                    {periodTimed.map((item) => renderCard(item))}
-                    {periodTasks.map((item) => renderCard(item, isEditableNormalItem(item)))}
-                  </div>
-                </SortableContext>
+                <div className="day-panel-section-list">
+                  {!hasRows && <p className="day-panel-section-empty">Drop tasks here.</p>}
+                  <DropSlot id={`slot:${period.key}:0`} active={Boolean(activeDragId)} />
+                  {rows.map((row, index) => (
+                    <React.Fragment key={row.id}>
+                      {renderCard(row.item, row.type === 'task' && isEditableNormalItem(row.item))}
+                      <DropSlot id={`slot:${period.key}:${index + 1}`} active={Boolean(activeDragId)} />
+                    </React.Fragment>
+                  ))}
+                </div>
               </DroppableSection>
             );
           })}
+          <DragOverlay dropAnimation={{ duration: 180, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' }}>
+            {activeDragItem ? (
+              <div className="day-panel-drag-overlay">
+                <ItemCard
+                  item={activeDragItem}
+                  onEdit={() => undefined}
+                  onMove={() => undefined}
+                  onDelete={() => undefined}
+                  onDeleteSeries={() => undefined}
+                  onToggleDone={() => undefined}
+                  onInlineUpdate={async () => false}
+                  dragging
+                />
+              </div>
+            ) : null}
+          </DragOverlay>
         </DndContext>
       </div>
 

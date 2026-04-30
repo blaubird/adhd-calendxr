@@ -428,6 +428,7 @@ export default function CalendarShell({
         onNext={cal.goNextMonth}
         onToday={cal.goToday}
         userEmail={userEmail}
+        items={cal.items}
       />
 
       <main className="calendar-center">
