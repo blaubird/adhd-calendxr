@@ -1,12 +1,19 @@
 'use client';
 import React, { useState, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import CalendarShell from './calendar-shell';
-import GamblingTab from './components/gambling/gambling-tab';
-import CanvasTab from './components/canvas/canvas-tab';
 import { Item } from 'app/types';
 import { format } from 'date-fns';
 
 type ActiveTab = 'calendar' | 'canvas' | 'gambling';
+
+const CanvasTab = dynamic(() => import('./components/canvas/canvas-tab'), {
+  loading: () => <div className="tab-loading">Loading Canvas...</div>,
+});
+
+const GamblingTab = dynamic(() => import('./components/gambling/gambling-tab'), {
+  loading: () => <div className="tab-loading">Loading Gambling...</div>,
+});
 
 export default function MainShell({
   initialItems,

@@ -510,12 +510,11 @@ function DraggableItemCard(props: React.ComponentProps<typeof ItemCard>) {
   });
 
   const style = {
-    transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
-    transition: isDragging ? undefined : 'transform 160ms ease, opacity 160ms ease',
-    opacity: isDragging ? 0.6 : 1,
+    transition: 'opacity 140ms ease',
     zIndex: isDragging ? 10 : 0,
     position: 'relative' as const,
   };
+  void transform;
 
   return (
     <div ref={setNodeRef} style={style}>
@@ -531,7 +530,7 @@ function DropSlot({ id, active }: { id: string; active: boolean }) {
       ref={setNodeRef}
       className={`day-panel-drop-slot ${active ? 'day-panel-drop-slot--active' : ''} ${isOver ? 'day-panel-drop-slot--over' : ''}`}
     >
-      <span />
+      <span>Place here</span>
     </div>
   );
 }
@@ -608,9 +607,9 @@ export function DayPanel({
   );
   const unplannedTasks = useMemo(
     () => sortTasksByPlanningOrder(
-      visibleItems.filter((item) => !item.timeStart && !item.planningPeriod && String(item.id) !== activeDragId)
+      visibleItems.filter((item) => !item.timeStart && !item.planningPeriod)
     ),
-    [visibleItems, activeDragId]
+    [visibleItems]
   );
   const activeDragItem = useMemo(
     () => items.find((item) => String(item.id) === activeDragId) ?? null,
@@ -639,10 +638,24 @@ export function DayPanel({
     if (!activeItem || activeItem.timeStart || !isEditableNormalItem(activeItem)) return;
 
     const overId = String(over.id);
-    if (!overId.startsWith('slot:')) return;
-    const [, rawPeriod, rawIndex] = overId.split(':');
+    const sectionIds = ['unplanned', ...PERIODS.map((period) => period.key)];
+    const isSectionDrop = sectionIds.includes(overId);
+    if (!overId.startsWith('slot:') && !isSectionDrop) return;
+    const [, slotPeriod, slotIndex] = overId.split(':');
+    const rawPeriod = isSectionDrop ? overId : slotPeriod;
     const targetPeriod = rawPeriod === 'unplanned' ? null : rawPeriod as PlanningPeriod;
-    const targetIndex = Number(rawIndex);
+    const visualIndex = isSectionDrop ? Number.MAX_SAFE_INTEGER : Number(slotIndex);
+    const sourcePeriod = activeItem.planningPeriod ?? null;
+    let targetIndex = visualIndex;
+    if (!isSectionDrop && targetPeriod === sourcePeriod) {
+      const visualRows = targetPeriod
+        ? buildPeriodRows(items, targetPeriod)
+        : sortTasksByPlanningOrder(items.filter((item) => !item.timeStart && !item.planningPeriod));
+      const activeVisualIndex = visualRows.findIndex((rowOrItem) => String(rowOrItem.id) === String(active.id));
+      if (activeVisualIndex >= 0 && visualIndex > activeVisualIndex) {
+        targetIndex = visualIndex - 1;
+      }
+    }
     if (!Number.isInteger(targetIndex) || targetIndex < 0) return;
 
     if (!targetPeriod) {
@@ -756,7 +769,7 @@ export function DayPanel({
           </DroppableSection>
 
           {PERIODS.map((period) => {
-            const rows = buildPeriodRows(visibleItems, period.key, activeDragId);
+            const rows = buildPeriodRows(visibleItems, period.key);
             const hasRows = rows.length > 0;
             return (
               <DroppableSection

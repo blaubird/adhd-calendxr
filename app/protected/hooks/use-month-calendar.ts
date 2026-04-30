@@ -258,10 +258,21 @@ export function useMonthCalendar(initialItems: Item[], initialMonth: string) {
   }
 
   async function saveItemsOrder(orderedItems: Item[]): Promise<boolean> {
-    // Sequentially update orders without triggering fetch loop
-    for (const item of orderedItems) {
-      if (typeof item.id !== 'number' || item.isOccurrence) continue; // Skip occurrences
-      const payload = {
+    const writableItems = orderedItems.filter((item) => typeof item.id === 'number' && !item.isOccurrence);
+    if (writableItems.length === 0) return true;
+
+    const previousItems = items;
+    const optimisticById = new Map(writableItems.map((item) => [String(item.id), item]));
+    setItems((current) =>
+      current.map((item) => {
+        const next = optimisticById.get(String(item.id));
+        return next ? { ...item, planningPeriod: next.planningPeriod ?? null, planningOrder: next.planningOrder ?? null } : item;
+      })
+    );
+
+    try {
+      const requests = writableItems.map((item) => {
+        const payload = {
         kind: item.kind,
         day: item.day,
         timeStart: item.timeStart ? formatTime24(item.timeStart) : null,
@@ -281,16 +292,25 @@ export function useMonthCalendar(initialItems: Item[], initialMonth: string) {
         parentId: item.parentId ?? null,
         occurrenceDay: item.occurrenceDay ?? null,
       };
-      const res = await fetch(`/api/items/${item.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        return fetch(`/api/items/${item.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
       });
-      if (!res.ok) {
+
+      const responses = await Promise.all(requests);
+      if (responses.some((res) => !res.ok)) {
         setError('Unable to save item order');
+        setItems(previousItems);
         return false;
       }
+    } catch {
+      setError('Network error saving item order');
+      setItems(previousItems);
+      return false;
     }
+
     await fetchItems();
     return true;
   }
