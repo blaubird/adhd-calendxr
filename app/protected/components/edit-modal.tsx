@@ -5,16 +5,34 @@ import { formatDayEU, parseDayEU, parseDayKey } from 'app/lib/datetime';
 import { TimeField } from './form-fields';
 import { ItemFormState } from '../hooks/use-calendar-data';
 
-export type RecurrenceOption = 'none' | 'daily' | 'weekly' | 'monthly';
+export type RecurrenceOption = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly';
 export type EditScope = 'occurrence' | 'series';
 
 const WEEKDAY_CODES = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
+const RECURRENCE_LABELS = {
+  en: { none: 'None', daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly', yearly: 'Yearly' },
+  fr: { none: 'Aucun', daily: 'Quotidien', weekly: 'Hebdomadaire', monthly: 'Mensuel', yearly: 'Annuel' },
+  uk: { none: 'Немає', daily: 'Щодня', weekly: 'Щотижня', monthly: 'Щомісяця', yearly: 'Щороку' },
+  ru: { none: 'Нет', daily: 'Ежедневно', weekly: 'Еженедельно', monthly: 'Ежемесячно', yearly: 'Ежегодно' },
+} satisfies Record<string, Record<RecurrenceOption, string>>;
+
+type RecurrenceLanguage = keyof typeof RECURRENCE_LABELS;
+
+function browserRecurrenceLanguage(): RecurrenceLanguage {
+  if (typeof navigator === 'undefined') return 'en';
+  const code = navigator.language.toLowerCase();
+  if (code.startsWith('fr')) return 'fr';
+  if (code.startsWith('uk')) return 'uk';
+  if (code.startsWith('ru')) return 'ru';
+  return 'en';
+}
 
 export function deriveRecurrenceOption(rule: string | null | undefined): RecurrenceOption {
   if (!rule) return 'none';
   if (rule.startsWith('FREQ=DAILY')) return 'daily';
   if (rule.startsWith('FREQ=WEEKLY')) return 'weekly';
   if (rule.startsWith('FREQ=MONTHLY')) return 'monthly';
+  if (rule.startsWith('FREQ=YEARLY')) return 'yearly';
   return 'none';
 }
 
@@ -30,6 +48,11 @@ export function buildRecurrenceRule(option: RecurrenceOption, dayKey: string): s
     case 'monthly': {
       const dayNumber = day.getUTCDate();
       return `FREQ=MONTHLY;INTERVAL=1;BYMONTHDAY=${dayNumber}`;
+    }
+    case 'yearly': {
+      const month = day.getUTCMonth() + 1;
+      const dayNumber = day.getUTCDate();
+      return `FREQ=YEARLY;INTERVAL=1;BYMONTH=${month};BYMONTHDAY=${dayNumber}`;
     }
     default:
       return null;
@@ -116,6 +139,7 @@ export function EditModal({
   const [countInput, setCountInput] = useState(
     values.recurrenceCount != null ? String(values.recurrenceCount) : ''
   );
+  const [recurrenceLanguage, setRecurrenceLanguage] = useState<RecurrenceLanguage>('en');
 
   // Recurrence controls are disabled when editing a single occurrence
   const recurrenceDisabled = editScope === 'occurrence' && Boolean(local.isOccurrence || local.parentId);
@@ -134,8 +158,13 @@ export function EditModal({
     setEditScope(series ? null : 'occurrence');
   }, [values]);
 
+  useEffect(() => {
+    setRecurrenceLanguage(browserRecurrenceLanguage());
+  }, []);
+
   const update = (key: keyof ItemFormState, value: any) =>
     setLocal((prev) => ({ ...prev, [key]: value }));
+  const recurrenceLabels = RECURRENCE_LABELS[recurrenceLanguage] ?? RECURRENCE_LABELS.en;
 
   const handleDayChange = (value: string) => {
     setDayInput(value);
@@ -299,10 +328,11 @@ export function EditModal({
                   disabled={recurrenceDisabled}
                   onChange={(e) => handleRecurrenceChange(e.target.value as RecurrenceOption)}
                 >
-                  <option value="none">None</option>
-                  <option value="daily">Daily</option>
-                  <option value="weekly">Weekly</option>
-                  <option value="monthly">Monthly</option>
+                  <option value="none">{recurrenceLabels.none}</option>
+                  <option value="daily">{recurrenceLabels.daily}</option>
+                  <option value="weekly">{recurrenceLabels.weekly}</option>
+                  <option value="monthly">{recurrenceLabels.monthly}</option>
+                  <option value="yearly">{recurrenceLabels.yearly}</option>
                 </select>
                 {recurrenceDisabled && (
                   <span className="text-[11px] text-slate-500">

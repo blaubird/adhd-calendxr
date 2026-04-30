@@ -1,5 +1,5 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
-import { eq, and, gte, lte, lt, or, isNull, isNotNull, inArray } from 'drizzle-orm';
+import { eq, and, gte, lte, lt, or, isNull, isNotNull, inArray, ilike } from 'drizzle-orm';
 import postgres from 'postgres';
 import { genSaltSync, hashSync } from 'bcrypt-ts';
 import { randomUUID } from 'crypto';
@@ -141,6 +141,19 @@ export async function listItemsInRange(userId: number, start: string, end: strin
   const uniqueOverrides = overrides.filter((ov) => !existingIds.has(ov.id));
 
   return [...rangeItems, ...uniqueOverrides];
+}
+
+export async function searchItemsByTitle(userId: number, query: string, limit = 30) {
+  const normalized = query.trim().replace(/[%_\\]/g, ' ');
+  if (!normalized) return [];
+  const safeLimit = Math.min(Math.max(limit, 1), 50);
+
+  return db
+    .select()
+    .from(items)
+    .where(and(eq(items.userId, userId), ilike(items.title, `%${normalized}%`)))
+    .orderBy(items.day, items.timeStart, items.id)
+    .limit(safeLimit);
 }
 
 export async function addExdate(userId: number, itemId: number, day: string) {

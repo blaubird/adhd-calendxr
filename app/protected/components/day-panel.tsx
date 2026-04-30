@@ -611,13 +611,17 @@ export function DayPanel({
     ),
     [visibleItems]
   );
+  const periodRows = useMemo(
+    () => Object.fromEntries(PERIODS.map((period) => [period.key, buildPeriodRows(visibleItems, period.key)])) as Record<PlanningPeriod, PeriodRow[]>,
+    [visibleItems]
+  );
   const activeDragItem = useMemo(
     () => items.find((item) => String(item.id) === activeDragId) ?? null,
     [items, activeDragId]
   );
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } })
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   );
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -626,7 +630,8 @@ export function DayPanel({
 
   const handleDragOver = (event: DragOverEvent) => {
     const id = event.over ? String(event.over.id) : null;
-    setOverSlotId(id?.startsWith('slot:') ? id : null);
+    const next = id?.startsWith('slot:') ? id : null;
+    setOverSlotId((current) => current === next ? current : next);
   };
 
   const handleDragEnd = async (event: DragEndEvent) => {
@@ -676,7 +681,7 @@ export function DayPanel({
     const nextRows = [...rows];
     nextRows.splice(Math.min(targetIndex, nextRows.length), 0, {
       id: String(activeItem.id),
-      item: { ...activeItem, planningPeriod: targetPeriod, timeStart: null, timeEnd: null },
+      item: { ...activeItem, kind: 'task', planningPeriod: targetPeriod, timeStart: null, timeEnd: null },
       type: 'task',
       orderKey: 0,
     });
@@ -769,7 +774,7 @@ export function DayPanel({
           </DroppableSection>
 
           {PERIODS.map((period) => {
-            const rows = buildPeriodRows(visibleItems, period.key);
+            const rows = periodRows[period.key];
             const hasRows = rows.length > 0;
             return (
               <DroppableSection

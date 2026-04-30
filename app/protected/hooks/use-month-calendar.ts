@@ -192,6 +192,7 @@ export function useMonthCalendar(initialItems: Item[], initialMonth: string) {
 
   /** Select a specific day */
   const selectDay = useCallback((day: string) => {
+    setMonthKey(day.slice(0, 7));
     setSelectedDay(day);
   }, []);
 

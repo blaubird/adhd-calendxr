@@ -49,36 +49,86 @@ function getNextUpcomingTimedItem(items: Item[], now: Date) {
     .sort((a, b) => a.totalMinutes - b.totalMinutes)[0] ?? null;
 }
 
-function SidebarNextUp({ items }: { items: Item[] }) {
+function getUpcomingTimedItemOffset(item: Item, now: Date) {
+  if (!item.timeStart) return null;
+  const todayStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const nowMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
+  const itemDay = item.occurrenceDay ?? item.day;
+  const itemDate = parseDayKey(itemDay);
+  const dayOffset = Math.round((itemDate.getTime() - todayStart) / DAY_MS);
+  const [hour, minute] = item.timeStart.split(':').map(Number);
+  return dayOffset * 1440 + hour * 60 + minute - nowMinutes;
+}
+
+type NextUpResult = {
+  item: Item;
+  totalMinutes: number;
+};
+
+function SidebarNextUp({ items, onPick }: { items: Item[]; onPick?: (item: Item) => void }) {
   const [now, setNow] = useState(() => nowInTz(new Date()));
+  const [serverNextUp, setServerNextUp] = useState<NextUpResult | null>(null);
 
   useEffect(() => {
     const id = window.setInterval(() => setNow(nowInTz(new Date())), 60 * 1000);
     return () => window.clearInterval(id);
   }, []);
 
-  const nextUp = useMemo(() => getNextUpcomingTimedItem(items, now), [items, now]);
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchNextUp() {
+      try {
+        const res = await fetch('/api/items/next-up');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setServerNextUp(data.nextUp ?? null);
+      } catch {
+        if (!cancelled) setServerNextUp(null);
+      }
+    }
+    fetchNextUp();
+    const id = window.setInterval(fetchNextUp, 60 * 1000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [items]);
+
+  const localNextUp = useMemo(() => getNextUpcomingTimedItem(items, now), [items, now]);
+  const currentServerNextUp = useMemo(() => {
+    if (!serverNextUp) return null;
+    const totalMinutes = getUpcomingTimedItemOffset(serverNextUp.item, now);
+    return totalMinutes == null || totalMinutes < 0 ? null : { item: serverNextUp.item, totalMinutes };
+  }, [serverNextUp, now]);
+  const nextUp = currentServerNextUp ?? localNextUp;
+
+  if (nextUp) {
+    const day = nextUp.item.occurrenceDay ?? nextUp.item.day;
+    return (
+      <button
+        className="sidebar-next-up sidebar-next-up--button"
+        onClick={() => onPick?.(nextUp.item)}
+        type="button"
+      >
+        <span className="sidebar-next-up-kicker">Next up</span>
+        <span className="sidebar-next-up-title">
+          <span>{formatTimeValue(nextUp.item.timeStart)}</span>
+          {nextUp.item.title}
+        </span>
+        <span className="sidebar-next-up-meta">
+          {relativeMinutesLabel(nextUp.totalMinutes)}
+          {' · '}
+          {dayKeyFromZonedDate(now) === day ? 'Today' : day}
+        </span>
+        <span className="sidebar-next-up-tz">{TIMEZONE}</span>
+      </button>
+    );
+  }
 
   return (
     <section className="sidebar-next-up">
       <p className="sidebar-next-up-kicker">Next up</p>
-      {nextUp ? (
-        <>
-          <p className="sidebar-next-up-title">
-            <span>{formatTimeValue(nextUp.item.timeStart)}</span>
-            {nextUp.item.title}
-          </p>
-          <p className="sidebar-next-up-meta">
-            {relativeMinutesLabel(nextUp.totalMinutes)}
-            {' · '}
-            {dayKeyFromZonedDate(now) === (nextUp.item.occurrenceDay ?? nextUp.item.day)
-              ? 'Today'
-              : nextUp.item.occurrenceDay ?? nextUp.item.day}
-          </p>
-        </>
-      ) : (
-        <p className="sidebar-next-up-empty">No upcoming timed items.</p>
-      )}
+      <p className="sidebar-next-up-empty">No upcoming timed items.</p>
       <p className="sidebar-next-up-tz">{TIMEZONE}</p>
     </section>
   );
@@ -92,6 +142,7 @@ export function Sidebar({
   onToday,
   userEmail,
   items,
+  onPickNextUp,
 }: {
   year: number;
   month: number;
@@ -100,6 +151,7 @@ export function Sidebar({
   onToday: () => void;
   userEmail: string;
   items: Item[];
+  onPickNextUp?: (item: Item) => void;
 }) {
   const monthName = MONTH_NAMES[month - 1] ?? '';
 
@@ -138,7 +190,7 @@ export function Sidebar({
       {/* Weather & Moon */}
       <WeatherWidget />
       <MoonPhase />
-      <SidebarNextUp items={items} />
+      <SidebarNextUp items={items} onPick={onPickNextUp} />
       <div className="sidebar-placeholder" />
 
       <div className="sidebar-footer">

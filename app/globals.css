@@ -451,6 +451,25 @@ textarea {
   border-top: 1px solid rgb(30 41 59);
 }
 
+.sidebar-next-up--button {
+  width: 100%;
+  border-right: 0;
+  border-bottom: 0;
+  border-left: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  transition: background 0.16s ease, border-color 0.16s ease;
+}
+
+.sidebar-next-up--button:hover,
+.sidebar-next-up--button:focus-visible {
+  outline: none;
+  background: rgba(15, 23, 42, 0.5);
+  border-top-color: rgba(148, 163, 184, 0.35);
+}
+
 .sidebar-next-up-kicker {
   color: var(--text-muted);
   font-size: var(--font-micro);
@@ -655,9 +674,11 @@ textarea {
   padding: 7px 9px 6px;
   border-bottom: 1px solid var(--border-subtle);
   flex-shrink: 0;
+  flex-wrap: wrap;
 }
 
 .day-panel-header-copy {
+  flex: 1 1 130px;
   min-width: 0;
 }
 
@@ -681,10 +702,11 @@ textarea {
   font-size: var(--font-lg);
   font-weight: 600;
   color: var(--text-primary);
+  overflow-wrap: anywhere;
 }
 
 .day-panel-add-btn {
-  padding: 4px 9px;
+  padding: 4px 8px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-default);
   background: transparent;
@@ -701,7 +723,7 @@ textarea {
 }
 
 .day-panel-canvas-btn {
-  padding: 4px 9px;
+  padding: 4px 8px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-default);
   background: transparent;
@@ -770,7 +792,7 @@ textarea {
 }
 
 .day-panel-section--slot-over {
-  border-color: rgba(125, 211, 252, 0.24);
+  border-color: rgba(148, 163, 184, 0.26);
   background: rgba(15, 23, 42, 0.52);
 }
 
@@ -821,7 +843,7 @@ textarea {
   border-left: 3px solid var(--accent-pink);
   background: var(--bg-card);
   min-height: 37px;
-  transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease, opacity 0.14s ease;
+  transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease, opacity 0.14s ease, transform 0.16s ease;
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
 
@@ -837,9 +859,10 @@ textarea {
 }
 
 .day-panel-card--dragging {
-  opacity: 0.36;
-  background: rgba(13, 19, 33, 0.42);
+  opacity: 0.32;
+  background: rgba(13, 19, 33, 0.34);
   box-shadow: none;
+  transform: scale(0.995);
 }
 
 .day-panel-card--done {
@@ -951,12 +974,12 @@ textarea {
 }
 
 .day-panel-drop-slot {
-  height: 7px;
+  height: 4px;
   display: flex;
   align-items: center;
-  padding: 0 2px;
+  padding: 0 3px;
   opacity: 0;
-  transition: height 0.14s ease, opacity 0.14s ease, padding 0.14s ease;
+  transition: height 0.18s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.18s ease, padding 0.18s ease;
   overflow: hidden;
 }
 
@@ -967,8 +990,8 @@ textarea {
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-sm);
-  border: 1px solid rgba(148, 163, 184, 0.13);
-  background: rgba(15, 23, 42, 0.22);
+  border: 1px solid rgba(148, 163, 184, 0.08);
+  background: rgba(15, 23, 42, 0.18);
   color: transparent;
   font-size: var(--font-micro);
   font-weight: 650;
@@ -977,31 +1000,32 @@ textarea {
 }
 
 .day-panel-drop-slot--active {
-  opacity: 0;
+  height: 9px;
+  opacity: 0.42;
 }
 
 .day-panel-drop-slot--over {
-  height: 34px;
+  height: 35px;
   opacity: 1;
-  padding: 2px;
+  padding: 3px;
 }
 
 .day-panel-drop-slot--over span {
-  border-color: rgba(125, 211, 252, 0.2);
-  background: rgba(15, 23, 42, 0.7);
-  color: rgba(148, 163, 184, 0.7);
-  box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.05);
+  border-color: rgba(148, 163, 184, 0.24);
+  background: rgba(15, 23, 42, 0.78);
+  color: rgba(148, 163, 184, 0.64);
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.04);
 }
 
 .day-panel-drag-overlay {
   width: 250px;
-  opacity: 0.78;
+  opacity: 0.72;
   filter: drop-shadow(0 18px 34px rgba(0, 0, 0, 0.42));
   pointer-events: none;
 }
 
 .day-panel-drag-overlay .day-panel-card {
-  background: rgba(17, 24, 39, 0.92);
+  background: rgba(17, 24, 39, 0.82);
   backdrop-filter: blur(10px);
   box-shadow: 0 18px 34px rgba(0, 0, 0, 0.38);
 }
@@ -1199,7 +1223,7 @@ textarea {
 
 .calendar-toast {
   position: fixed;
-  right: 16px;
+  right: calc(var(--day-panel-width) + 18px);
   bottom: 16px;
   z-index: 50;
   display: flex;
@@ -1719,6 +1743,10 @@ textarea {
     max-height: 60vh;
     border-left: none;
     border-top: 1px solid var(--border-subtle);
+  }
+
+  .calendar-toast {
+    right: 16px;
   }
 }
 

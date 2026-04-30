@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Draft, Item } from 'app/types';
 import { formatDateFull, parseDayKey, formatDayEU, formatTimeRange, formatTimeValue } from 'app/lib/datetime';
 
@@ -28,6 +28,8 @@ function SearchOverlay({
   open,
   query,
   results,
+  loading,
+  error,
   onQueryChange,
   onClose,
   onPick,
@@ -35,6 +37,8 @@ function SearchOverlay({
   open: boolean;
   query: string;
   results: Item[];
+  loading: boolean;
+  error: string | null;
   onQueryChange: (value: string) => void;
   onClose: () => void;
   onPick: (item: Item) => void;
@@ -67,7 +71,9 @@ function SearchOverlay({
         </div>
         <div className="search-results">
           {!query.trim() && <p className="search-empty">Type to search titles.</p>}
-          {query.trim() && results.length === 0 && <p className="search-empty">No matching items.</p>}
+          {query.trim() && loading && <p className="search-empty">Searching...</p>}
+          {query.trim() && error && <p className="search-empty">{error}</p>}
+          {query.trim() && !loading && !error && results.length === 0 && <p className="search-empty">No matching items.</p>}
           {results.map((item) => (
             <button key={String(item.id)} className="search-result-row" onClick={() => onPick(item)} type="button">
               <span className="search-result-title">{item.title}</span>
@@ -129,6 +135,9 @@ export default function CalendarShell({
   const [undoToast, setUndoToast] = useState<UndoToast | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Item[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [highlightedItemId, setHighlightedItemId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -146,18 +155,60 @@ export default function CalendarShell({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const searchResults = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return [];
-    return cal.items
-      .filter((item) => item.title.toLowerCase().includes(q))
-      .sort((a, b) => {
-        const dayCompare = (a.occurrenceDay ?? a.day).localeCompare(b.occurrenceDay ?? b.day);
-        if (dayCompare !== 0) return dayCompare;
-        return (a.timeStart || '').localeCompare(b.timeStart || '');
-      })
-      .slice(0, 20);
-  }, [cal.items, searchQuery]);
+  useEffect(() => {
+    if (!searchOpen) return;
+    const query = searchQuery.trim();
+    if (!query) {
+      setSearchResults([]);
+      setSearchLoading(false);
+      setSearchError(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeout = window.setTimeout(async () => {
+      setSearchLoading(true);
+      setSearchError(null);
+      try {
+        const res = await fetch(`/api/items/search?q=${encodeURIComponent(query)}&limit=30`, {
+          signal: controller.signal,
+        });
+        if (!res.ok) {
+          setSearchError('Search failed.');
+          setSearchResults([]);
+          return;
+        }
+        const data = await res.json();
+        setSearchResults(Array.isArray(data.items) ? data.items : []);
+      } catch (error: any) {
+        if (error?.name !== 'AbortError') {
+          setSearchError('Search failed.');
+          setSearchResults([]);
+        }
+      } finally {
+        setSearchLoading(false);
+      }
+    }, 240);
+
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [searchOpen, searchQuery]);
+
+  function highlightIdForItem(item: Item) {
+    const day = item.occurrenceDay ?? item.day;
+    if (item.isOccurrence) return String(item.id);
+    if (item.recurrenceRule && typeof item.id === 'number') return `r:${item.id}:${day}`;
+    return String(item.id);
+  }
+
+  function navigateAndHighlight(item: Item) {
+    const day = item.occurrenceDay ?? item.day;
+    cal.selectDay(day);
+    setHighlightedItemId(highlightIdForItem(item));
+    window.setTimeout(() => setHighlightedItemId(null), 2200);
+  }
 
   // ── Item → FormState converters ──
 
@@ -429,6 +480,7 @@ export default function CalendarShell({
         onToday={cal.goToday}
         userEmail={userEmail}
         items={cal.items}
+        onPickNextUp={navigateAndHighlight}
       />
 
       <main className="calendar-center">
@@ -472,15 +524,14 @@ export default function CalendarShell({
         open={searchOpen}
         query={searchQuery}
         results={searchResults}
+        loading={searchLoading}
+        error={searchError}
         onQueryChange={setSearchQuery}
         onClose={() => setSearchOpen(false)}
         onPick={(item) => {
-          const day = item.occurrenceDay ?? item.day;
-          cal.selectDay(day);
-          setHighlightedItemId(String(item.id));
+          navigateAndHighlight(item);
           setSearchOpen(false);
           setSearchQuery('');
-          window.setTimeout(() => setHighlightedItemId(null), 2200);
         }}
       />
 

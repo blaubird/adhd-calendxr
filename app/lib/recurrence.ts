@@ -1,6 +1,7 @@
 import {
   addDays,
   addMonths,
+  addYears,
   differenceInCalendarDays,
   differenceInCalendarMonths,
 } from 'date-fns';
@@ -8,9 +9,10 @@ import { Item } from 'app/types';
 import { formatDayKey, parseDayKey, TIMEZONE } from './datetime';
 
 type ParsedRule = {
-  freq: 'DAILY' | 'WEEKLY' | 'MONTHLY';
+  freq: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY';
   interval: number;
   byDay?: number[];
+  byMonth?: number[];
   byMonthDay?: number[];
   until?: Date | null;
   count?: number | null;
@@ -80,7 +82,7 @@ function parseRule(rule?: string | null): ParsedRule | null {
     const value = rawValue?.trim();
     switch (key) {
       case 'FREQ':
-        if (value === 'DAILY' || value === 'WEEKLY' || value === 'MONTHLY') {
+        if (value === 'DAILY' || value === 'WEEKLY' || value === 'MONTHLY' || value === 'YEARLY') {
           parsed.freq = value;
         }
         break;
@@ -92,6 +94,12 @@ function parseRule(rule?: string | null): ParsedRule | null {
           .split(',')
           .map((v) => WEEKDAY_CODES[v.toUpperCase()] ?? null)
           .filter((v): v is number => v !== null);
+        break;
+      case 'BYMONTH':
+        parsed.byMonth = (value || '')
+          .split(',')
+          .map((v) => Number.parseInt(v, 10))
+          .filter((v) => Number.isInteger(v) && v >= 1 && v <= 12);
         break;
       case 'BYMONTHDAY':
         parsed.byMonthDay = (value || '')
@@ -116,6 +124,7 @@ function parseRule(rule?: string | null): ParsedRule | null {
     freq: parsed.freq,
     interval: parsed.interval ?? 1,
     byDay: parsed.byDay,
+    byMonth: parsed.byMonth,
     byMonthDay: parsed.byMonthDay,
     until: parsed.until ?? null,
     count: parsed.count ?? null,
@@ -303,6 +312,54 @@ function expandMonthly(
   }
 }
 
+function expandYearly(
+  rule: ParsedRule,
+  base: Item,
+  range: { start: Date; end: Date },
+  exdates: Set<string>,
+  overrides: Map<string, Item>,
+  occurrences: Item[]
+) {
+  const anchor = parseDayKey(base.day);
+  const months = (rule.byMonth && rule.byMonth.length > 0)
+    ? rule.byMonth
+    : [anchor.getUTCMonth() + 1];
+  const dayNumbers = (rule.byMonthDay && rule.byMonthDay.length > 0)
+    ? rule.byMonthDay
+    : [anchor.getUTCDate()];
+  const produced = { value: 0 };
+
+  let cursor = anchor;
+  let safety = 0;
+  while (cursor <= range.end && safety < 1000) {
+    safety += 1;
+    const year = cursor.getUTCFullYear();
+
+    for (const month of months) {
+      for (const dayNumber of dayNumbers) {
+        const candidate = new Date(Date.UTC(year, month - 1, dayNumber));
+        // Invalid month/day pairs, such as Feb 29 on non-leap years, roll in JS.
+        // Keep yearly recurrence as "same month/day" and skip those years.
+        if (candidate.getUTCMonth() !== month - 1 || candidate.getUTCDate() !== dayNumber) continue;
+        if (candidate < anchor) continue;
+        const keepGoing = addOccurrence(
+          occurrences,
+          base,
+          candidate,
+          exdates,
+          overrides,
+          produced,
+          rule,
+          range
+        );
+        if (!keepGoing) return;
+      }
+    }
+
+    cursor = addYears(cursor, rule.interval);
+  }
+}
+
 export function expandRecurringItems(
   items: Item[],
   startDayKey: string,
@@ -350,6 +407,9 @@ export function expandRecurringItems(
         break;
       case 'MONTHLY':
         expandMonthly(rule, master, range, exdates, overrideMap, occurrences);
+        break;
+      case 'YEARLY':
+        expandYearly(rule, master, range, exdates, overrideMap, occurrences);
         break;
       default:
         break;
