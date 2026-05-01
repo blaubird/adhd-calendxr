@@ -712,22 +712,20 @@ export function DayPanel({
   return (
     <div className="day-panel">
       <div className="day-panel-header">
-        <div className="day-panel-header-copy">
-          <p className="day-panel-weekday">{dayOfWeek}</p>
-          <div className="day-panel-title-row">
-            <h2 className="day-panel-date">{dayLabel}</h2>
-            <button className="day-panel-toggle-btn" onClick={() => setShowDone((value) => !value)} type="button">
-              {showDone ? 'Hide done' : 'Show done'}
-            </button>
-          </div>
+        <div className="day-panel-header-top">
+          <p className="day-panel-weekday">{dayOfWeek.toUpperCase()}</p>
+          <button className="day-panel-toggle-btn" onClick={() => setShowDone((value) => !value)} type="button">
+            {showDone ? 'HIDE DONE' : 'SHOW DONE'}
+          </button>
         </div>
+        <h2 className="day-panel-date">{dayLabel}</h2>
         <div className="day-panel-header-actions">
           <button className="day-panel-canvas-btn" onClick={onOpenSearch} type="button" title="Search">
-            Search
+            🔍 Search
           </button>
           {onOpenDayCanvas && (
             <button className="day-panel-canvas-btn" onClick={() => onOpenDayCanvas(selectedDay)} type="button" title="Open Day Canvas">
-              Canvas
+              🖼 Canvas
             </button>
           )}
           <button className="day-panel-add-btn" onClick={() => onAddNew(selectedDay)} type="button">

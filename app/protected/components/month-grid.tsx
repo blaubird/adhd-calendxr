@@ -5,7 +5,7 @@ import { Item } from 'app/types';
 import { formatDayKey, formatTimeValue, nowInTz } from 'app/lib/datetime';
 import { DEFAULT_ITEM_COLOR, RECURRING_ITEM_COLOR } from 'app/lib/item-colors';
 
-const WEEKDAY_HEADERS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const WEEKDAY_HEADERS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
 
 /** Default colors for dots */
 const DONE_COLOR = '#555';
@@ -66,21 +66,30 @@ function DayCell({
       </span>
       {visibleItems.length > 0 && (
         <div className="month-cell-dots">
-          {visibleItems.map((item) => (
-            <button
-              key={String(item.id)}
-              className={`month-dot ${item.status === 'done' ? 'month-dot--done' : ''}`}
-              style={{ backgroundColor: getItemDotColor(item) }}
-              title={dotLabel(item)}
-              aria-label={`Open ${dotLabel(item)}`}
-              onClick={(event) => {
-                event.stopPropagation();
-                onPickItem(item);
-              }}
-              onKeyDown={(event) => event.stopPropagation()}
-              type="button"
-            />
-          ))}
+          {visibleItems.map((item) => {
+            const color = getItemDotColor(item);
+            const isDone = item.status === 'done';
+            return (
+              <button
+                key={String(item.id)}
+                className={`month-dot ${isDone ? 'month-dot--done' : ''}`}
+                style={{
+                  backgroundColor: color,
+                  boxShadow: isDone
+                    ? '0 1px 2px rgba(0,0,0,0.4)'
+                    : `0 0 6px ${color}88, 0 0 12px ${color}44, 0 1px 3px rgba(0,0,0,0.5)`,
+                }}
+                title={dotLabel(item)}
+                aria-label={`Open ${dotLabel(item)}`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onPickItem(item);
+                }}
+                onKeyDown={(event) => event.stopPropagation()}
+                type="button"
+              />
+            );
+          })}
           {overflowCount > 0 && (
             <span className="month-dot-overflow">+{overflowCount}</span>
           )}

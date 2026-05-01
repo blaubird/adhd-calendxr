@@ -105,32 +105,36 @@ function SidebarNextUp({ items, onPick }: { items: Item[]; onPick?: (item: Item)
   if (nextUp) {
     const day = nextUp.item.occurrenceDay ?? nextUp.item.day;
     return (
-      <button
-        className="sidebar-next-up sidebar-next-up--button"
-        onClick={() => onPick?.(nextUp.item)}
-        type="button"
-      >
-        <span className="sidebar-next-up-kicker">Next up</span>
-        <span className="sidebar-next-up-title">
-          <span>{formatTimeValue(nextUp.item.timeStart)}</span>
-          {nextUp.item.title}
-        </span>
-        <span className="sidebar-next-up-meta">
-          {relativeMinutesLabel(nextUp.totalMinutes)}
-          {' · '}
-          {dayKeyFromZonedDate(now) === day ? 'Today' : day}
-        </span>
-        <span className="sidebar-next-up-tz">{TIMEZONE}</span>
-      </button>
+      <div className="sidebar-card">
+        <button
+          className="sidebar-next-up sidebar-next-up--button"
+          onClick={() => onPick?.(nextUp.item)}
+          type="button"
+        >
+          <span className="sidebar-next-up-kicker">NEXT UP</span>
+          <span className="sidebar-next-up-title">
+            <span>{formatTimeValue(nextUp.item.timeStart)}</span>
+            {nextUp.item.title}
+          </span>
+          <span className="sidebar-next-up-meta">
+            {relativeMinutesLabel(nextUp.totalMinutes)}
+            {' · '}
+            {dayKeyFromZonedDate(now) === day ? 'Today' : day}
+          </span>
+          <span className="sidebar-next-up-tz">{TIMEZONE}</span>
+        </button>
+      </div>
     );
   }
 
   return (
-    <section className="sidebar-next-up">
-      <p className="sidebar-next-up-kicker">Next up</p>
-      <p className="sidebar-next-up-empty">No upcoming timed items.</p>
-      <p className="sidebar-next-up-tz">{TIMEZONE}</p>
-    </section>
+    <div className="sidebar-card">
+      <section className="sidebar-next-up">
+        <p className="sidebar-next-up-kicker">NEXT UP</p>
+        <p className="sidebar-next-up-empty">No upcoming timed items.</p>
+        <p className="sidebar-next-up-tz">{TIMEZONE}</p>
+      </section>
+    </div>
   );
 }
 
@@ -154,54 +158,62 @@ export function Sidebar({
   onPickNextUp?: (item: Item) => void;
 }) {
   const monthName = MONTH_NAMES[month - 1] ?? '';
+  // userEmail is kept in props for compatibility but no longer rendered
+  void userEmail;
 
   return (
     <aside className="sidebar">
-      <div className="sidebar-header">
-        <div className="sidebar-month-nav">
-          <button
-            className="sidebar-nav-btn"
-            onClick={onPrev}
-            aria-label="Previous month"
-          >
-            ‹
-          </button>
-          <div className="sidebar-month-label">
-            <span className="sidebar-month-name">{monthName}</span>
-            <span className="sidebar-year">{year}</span>
+      {/* Month Nav Card */}
+      <div className="sidebar-card">
+        <div className="sidebar-header">
+          <div className="sidebar-month-nav">
+            <button
+              className="sidebar-nav-btn"
+              onClick={onPrev}
+              aria-label="Previous month"
+            >
+              ‹
+            </button>
+            <div className="sidebar-month-label">
+              <span className="sidebar-month-name">{monthName}</span>
+              <span className="sidebar-year">{year}</span>
+            </div>
+            <button
+              className="sidebar-nav-btn"
+              onClick={onNext}
+              aria-label="Next month"
+            >
+              ›
+            </button>
           </div>
-          <button
-            className="sidebar-nav-btn"
-            onClick={onNext}
-            aria-label="Next month"
-          >
-            ›
+          <button className="sidebar-today-btn" onClick={onToday}>
+            Today <span className="sidebar-today-icon">📅</span>
           </button>
         </div>
-        <button className="sidebar-today-btn" onClick={onToday}>
-          Today
-        </button>
       </div>
 
-      <div className="sidebar-clock-section">
-        <LiveClock />
+      {/* Moon Phase Card */}
+      <div className="sidebar-card">
+        <MoonPhase />
       </div>
 
-      {/* Weather & Moon */}
-      <WeatherWidget />
-      <MoonPhase />
+      {/* Weather Card */}
+      <div className="sidebar-card">
+        <WeatherWidget />
+      </div>
+
+      {/* Clock Card */}
+      <div className="sidebar-card">
+        <div className="sidebar-clock-section">
+          <LiveClock />
+        </div>
+      </div>
+
+      {/* Next Up Card */}
       <SidebarNextUp items={items} onPick={onPickNextUp} />
-      <div className="sidebar-placeholder" />
 
-      <div className="sidebar-footer">
-        <span className="sidebar-email">{userEmail}</span>
-        <form
-          action={async () => {
-            // Sign out is handled by the server action passed from the page
-          }}
-        >
-        </form>
-      </div>
+      {/* Spacer for flex layout — no footer/email */}
+      <div className="sidebar-placeholder" />
     </aside>
   );
 }

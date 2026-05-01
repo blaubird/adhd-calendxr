@@ -1,13 +1,13 @@
-export const DEFAULT_ITEM_COLOR = '#ff96f5';
-export const RECURRING_ITEM_COLOR = '#67eb67';
+export const DEFAULT_ITEM_COLOR = '#4DA3FF';
+export const RECURRING_ITEM_COLOR = '#2DD4BF';
 
 export const ITEM_COLOR_PALETTE = [
-  DEFAULT_ITEM_COLOR,
-  RECURRING_ITEM_COLOR,
-  '#ff0000',
-  '#00ff00',
-  '#5500ff',
-  '#00eeff',
-  '#4a991c',
-  '#ff0a91',
+  '#FF5C7A',
+  '#FFB347',
+  '#FFD166',
+  '#2DD4BF',
+  '#4DA3FF',
+  '#A78BFA',
+  '#00E5DB',
+  '#BDE5FF',
 ] as const;

@@ -27,13 +27,14 @@
 
   --accent-blue: #38bdf8;
   --accent-blue-hover: #7dd3fc;
-  --accent-pink: #ff96f5;
-  --accent-green: #67eb67;
+  --accent-pink: #FF5C7A;
+  --accent-green: #2DD4BF;
   --accent-rose: #fb7185;
   --accent-amber: #fbbf24;
 
   --shadow-soft: 0 8px 40px rgba(0, 0, 0, 0.5);
   --shadow-glow: 0 0 20px rgba(56, 189, 248, 0.08);
+  --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.03);
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
@@ -47,8 +48,8 @@
   --font-lg: 16px;
   --font-xl: 20px;
 
-  --sidebar-width: 176px;
-  --day-panel-width: 280px;
+  --sidebar-width: 200px;
+  --day-panel-width: 290px;
   --calendar-min-width: 840px;
   --calendar-min-height: 520px;
 }
@@ -200,8 +201,8 @@ textarea {
   border-right: 1px solid var(--border-subtle);
   display: flex;
   flex-direction: column;
-  padding: 8px 9px;
-  gap: 8px;
+  padding: 10px 10px;
+  gap: 10px;
   position: relative;
   top: 0;
   height: 100%;
@@ -210,10 +211,24 @@ textarea {
   scrollbar-gutter: stable;
 }
 
+.sidebar-card {
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-card);
+  padding: 10px 10px;
+  box-shadow: var(--shadow-card);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.sidebar-card:hover {
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-card), 0 0 12px rgba(56, 189, 248, 0.04);
+}
+
 .sidebar-header {
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 8px;
 }
 
 .sidebar-month-nav {
@@ -224,8 +239,8 @@ textarea {
 }
 
 .sidebar-nav-btn {
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -248,12 +263,12 @@ textarea {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0;
+  gap: 1px;
 }
 
 .sidebar-month-name {
-  font-size: var(--font-md);
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 700;
   color: var(--text-primary);
   letter-spacing: 0.01em;
 }
@@ -265,8 +280,8 @@ textarea {
 
 .sidebar-today-btn {
   width: 100%;
-  padding: 4px 9px;
-  border-radius: var(--radius-sm);
+  padding: 5px 10px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--border-default);
   background: transparent;
   color: var(--text-secondary);
@@ -274,6 +289,10 @@ textarea {
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
 
 .sidebar-today-btn:hover {
@@ -282,24 +301,16 @@ textarea {
   background: rgba(56, 189, 248, 0.05);
 }
 
+.sidebar-today-icon {
+  font-size: 13px;
+}
+
 .sidebar-clock-section {
-  padding-top: 6px;
-  border-top: 1px solid var(--border-subtle);
+  padding: 0;
 }
 
 .sidebar-placeholder {
   flex: 1;
-}
-
-.sidebar-footer {
-  padding-top: 8px;
-  border-top: 1px solid var(--border-subtle);
-}
-
-.sidebar-email {
-  font-size: var(--font-xs);
-  color: var(--text-dimmed);
-  word-break: break-all;
 }
 
 /* ── LiveClock ── */
@@ -309,12 +320,15 @@ textarea {
 }
 
 .live-clock-time {
-  font-size: var(--font-xl);
-  font-weight: 600;
+  font-size: 22px;
+  font-weight: 700;
   color: var(--text-primary);
   letter-spacing: 0.02em;
   line-height: 1.2;
   font-variant-numeric: tabular-nums;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .live-clock-date {
@@ -335,9 +349,9 @@ textarea {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin-top: 9px;
-  padding-top: 9px;
-  border-top: 1px solid rgb(30 41 59);
+  margin: 0;
+  padding: 0;
+  border: none;
 }
 
 .weather-title,
@@ -428,14 +442,15 @@ textarea {
 }
 
 .moon-phase {
-  gap: 9px !important;
-  margin-top: 10px !important;
-  padding-top: 10px !important;
+  gap: 8px !important;
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+  border: none !important;
 }
 
 .moon-phase .w-32 {
-  width: 92px !important;
-  height: 92px !important;
+  width: 76px !important;
+  height: 76px !important;
 }
 
 .moon-phase .text-sm {
@@ -446,21 +461,20 @@ textarea {
   display: flex;
   flex-direction: column;
   gap: 3px;
-  margin-top: 10px;
-  padding: 10px 8px 0;
-  border-top: 1px solid rgb(30 41 59);
+  margin: 0;
+  padding: 0;
+  border: none;
 }
 
 .sidebar-next-up--button {
   width: 100%;
-  border-right: 0;
-  border-bottom: 0;
-  border-left: 0;
+  border: none;
   background: transparent;
   text-align: left;
   cursor: pointer;
   border-radius: var(--radius-md);
-  transition: background 0.16s ease, border-color 0.16s ease;
+  transition: background 0.16s ease;
+  padding: 0;
 }
 
 .sidebar-next-up--button:hover,
@@ -521,7 +535,7 @@ textarea {
 .calendar-center {
   display: flex;
   flex-direction: column;
-  padding: 7px 9px;
+  padding: 10px 14px;
   overflow-y: auto;
   background: var(--bg-root);
   min-height: 0;
@@ -538,26 +552,26 @@ textarea {
 .month-weekday-headers {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 8px;
-  margin-bottom: 5px;
+  gap: 6px;
+  margin-bottom: 6px;
 }
 
 .month-weekday-header {
   text-align: center;
   font-size: var(--font-micro);
-  font-weight: 600;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.1em;
   color: var(--text-dimmed);
-  padding: 4px 0 5px;
+  padding: 4px 0 6px;
 }
 
 .month-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  grid-auto-rows: clamp(56px, calc((100vh - 190px) / 6), 92px);
+  grid-auto-rows: clamp(60px, calc((100vh - 180px) / 6), 100px);
   align-content: start;
-  gap: 8px;
+  gap: 6px;
   flex: 0 1 auto;
   min-height: 0;
 }
@@ -566,11 +580,11 @@ textarea {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 2px;
-  padding: 5px 6px;
+  gap: 4px;
+  padding: 7px 8px;
   min-height: 0;
-  border-radius: var(--radius-sm);
-  border: 1px solid rgba(30, 41, 59, 0.9);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(30, 41, 59, 0.7);
   background: var(--bg-surface);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
   cursor: pointer;
@@ -620,7 +634,7 @@ textarea {
 }
 
 .month-cell-number {
-  font-size: var(--font-sm);
+  font-size: var(--font-base);
   font-weight: 500;
   color: var(--text-secondary);
   line-height: 1;
@@ -633,40 +647,41 @@ textarea {
 
 .month-cell-dots {
   display: grid;
-  grid-template-columns: repeat(8, 8px);
+  grid-template-columns: repeat(8, 10px);
   gap: 4px;
   max-width: 100%;
   overflow: hidden;
   align-items: center;
+  margin-top: auto;
 }
 
 .month-dot {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   border: 0;
   padding: 0;
   flex-shrink: 0;
   cursor: pointer;
-  transition: opacity 0.15s, transform 0.15s ease, box-shadow 0.15s ease;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  transition: opacity 0.15s, transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
 }
 
 .month-dot:hover,
 .month-dot:focus-visible {
   outline: none;
-  transform: scale(1.22);
-  box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.9), 0 0 0 3px rgba(148, 163, 184, 0.35);
+  transform: scale(1.35);
+  filter: brightness(1.2);
 }
 
 .month-dot--done {
-  opacity: 0.4;
+  opacity: 0.35;
+  filter: grayscale(0.6);
 }
 
 .month-dot-overflow {
   font-size: 9px;
   color: var(--text-dimmed);
-  line-height: 8px;
+  line-height: 10px;
   font-weight: 650;
 }
 
@@ -686,55 +701,48 @@ textarea {
 
 .day-panel-header {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 7px 9px 6px;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px 10px;
   border-bottom: 1px solid var(--border-subtle);
   flex-shrink: 0;
-  flex-wrap: wrap;
 }
 
-.day-panel-header-copy {
-  flex: 1 1 130px;
-  min-width: 0;
-}
-
-.day-panel-title-row {
+.day-panel-header-top {
   display: flex;
-  align-items: baseline;
+  align-items: center;
+  justify-content: space-between;
   gap: 8px;
-  flex-wrap: wrap;
 }
 
 .day-panel-header-actions {
   display: flex;
   align-items: center;
   gap: 6px;
-  flex-shrink: 0;
   flex-wrap: wrap;
-  justify-content: flex-end;
 }
 
 .day-panel-weekday {
   font-size: var(--font-micro);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
   color: var(--text-dimmed);
+  font-weight: 600;
 }
 
 .day-panel-date {
-  font-size: var(--font-lg);
-  font-weight: 600;
+  font-size: 18px;
+  font-weight: 700;
   color: var(--text-primary);
   overflow-wrap: anywhere;
+  letter-spacing: 0.01em;
 }
 
 .day-panel-add-btn {
-  padding: 4px 8px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-default);
-  background: transparent;
+  padding: 5px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--accent-blue);
+  background: rgba(56, 189, 248, 0.08);
   color: var(--accent-blue);
   font-size: var(--font-sm);
   font-weight: 600;
@@ -743,16 +751,16 @@ textarea {
 }
 
 .day-panel-add-btn:hover {
-  background: rgba(56, 189, 248, 0.06);
+  background: rgba(56, 189, 248, 0.15);
   border-color: var(--accent-blue);
 }
 
 .day-panel-canvas-btn {
-  padding: 4px 8px;
-  border-radius: var(--radius-sm);
+  padding: 5px 10px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--border-default);
   background: transparent;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   font-size: var(--font-sm);
   font-weight: 500;
   cursor: pointer;
@@ -768,10 +776,10 @@ textarea {
 .day-panel-items {
   flex: 1;
   overflow-y: auto;
-  padding: 5px 7px 10px;
+  padding: 8px 12px 14px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   min-height: 0;
   scrollbar-gutter: stable;
 }
@@ -1669,8 +1677,8 @@ textarea {
 
 @media (max-width: 1100px) {
   :root {
-    --sidebar-width: 158px;
-    --day-panel-width: 264px;
+    --sidebar-width: 180px;
+    --day-panel-width: 272px;
     --calendar-min-width: 780px;
   }
 }
@@ -1842,10 +1850,6 @@ textarea {
   }
 
   .sidebar-placeholder {
-    display: none;
-  }
-
-  .sidebar-footer {
     display: none;
   }
 
