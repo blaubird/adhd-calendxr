@@ -447,7 +447,7 @@ textarea {
   flex-direction: column;
   gap: 3px;
   margin-top: 10px;
-  padding-top: 10px;
+  padding: 10px 8px 0;
   border-top: 1px solid rgb(30 41 59);
 }
 
@@ -589,6 +589,12 @@ textarea {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
+.month-cell:focus-visible {
+  outline: none;
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.16), var(--shadow-glow);
+}
+
 .month-cell--empty {
   background: transparent;
   cursor: default;
@@ -626,20 +632,31 @@ textarea {
 }
 
 .month-cell-dots {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 3px;
+  display: grid;
+  grid-template-columns: repeat(8, 8px);
+  gap: 4px;
   max-width: 100%;
   overflow: hidden;
+  align-items: center;
 }
 
 .month-dot {
-  width: 5px;
-  height: 5px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
+  border: 0;
+  padding: 0;
   flex-shrink: 0;
-  transition: opacity 0.15s;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.15s ease, box-shadow 0.15s ease;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+.month-dot:hover,
+.month-dot:focus-visible {
+  outline: none;
+  transform: scale(1.22);
+  box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.9), 0 0 0 3px rgba(148, 163, 184, 0.35);
 }
 
 .month-dot--done {
@@ -649,7 +666,8 @@ textarea {
 .month-dot-overflow {
   font-size: 9px;
   color: var(--text-dimmed);
-  line-height: 7px;
+  line-height: 8px;
+  font-weight: 650;
 }
 
 /* ═══════════════════════════════════════════════════
@@ -680,6 +698,13 @@ textarea {
 .day-panel-header-copy {
   flex: 1 1 130px;
   min-width: 0;
+}
+
+.day-panel-title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .day-panel-header-actions {
@@ -751,28 +776,23 @@ textarea {
   scrollbar-gutter: stable;
 }
 
-.day-panel-status-row {
-  display: flex;
-  justify-content: flex-end;
-  padding: 6px 8px 0;
-  flex-shrink: 0;
-}
-
 .day-panel-toggle-btn {
-  padding: 3px 8px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-default);
+  padding: 0;
+  border: 0;
   background: transparent;
   color: var(--text-muted);
-  font-size: var(--font-xs);
+  font-size: var(--font-micro);
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: color 0.15s ease;
 }
 
-.day-panel-toggle-btn:hover {
+.day-panel-toggle-btn:hover,
+.day-panel-toggle-btn:focus-visible {
+  outline: none;
   color: var(--text-primary);
-  border-color: var(--border-hover);
-  background: var(--bg-elevated);
 }
 
 .day-panel-section {
@@ -786,6 +806,14 @@ textarea {
   transition: border-color 0.15s ease, background 0.15s ease;
 }
 
+.day-panel-period-section {
+  gap: 4px;
+  padding: 3px 1px 1px;
+  border: 1px solid transparent;
+  border-radius: 0;
+  background: transparent;
+}
+
 .day-panel-section--over {
   border-color: rgba(148, 163, 184, 0.35);
   background: rgba(15, 23, 42, 0.42);
@@ -794,6 +822,13 @@ textarea {
 .day-panel-section--slot-over {
   border-color: rgba(148, 163, 184, 0.26);
   background: rgba(15, 23, 42, 0.52);
+}
+
+.day-panel-period-section.day-panel-section--over,
+.day-panel-period-section.day-panel-section--slot-over {
+  border-color: rgba(148, 163, 184, 0.14);
+  border-radius: var(--radius-sm);
+  background: rgba(15, 23, 42, 0.2);
 }
 
 .day-panel-section-header {
@@ -808,6 +843,19 @@ textarea {
   font-weight: 700;
 }
 
+.day-panel-period-section .day-panel-section-header {
+  justify-content: flex-start;
+  gap: 7px;
+  padding: 0 1px;
+}
+
+.day-panel-period-section .day-panel-section-header::after {
+  content: '';
+  height: 1px;
+  flex: 1;
+  background: rgba(148, 163, 184, 0.12);
+}
+
 .day-panel-section-title {
   color: var(--text-secondary);
 }
@@ -817,6 +865,10 @@ textarea {
   flex-direction: column;
   gap: 4px;
   min-height: 26px;
+}
+
+.day-panel-period-section .day-panel-section-list {
+  min-height: 0;
 }
 
 .day-panel-section-empty {
@@ -1273,6 +1325,56 @@ textarea {
 
 .calendar-toast button:hover {
   background: rgba(56, 189, 248, 0.15);
+}
+
+.item-color-palette {
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  border-radius: var(--radius-md);
+  border: 1px solid rgb(51 65 85);
+  background: rgb(15 23 42);
+  padding: 7px 8px;
+}
+
+.item-color-swatch {
+  width: 21px;
+  height: 21px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  padding: 0;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.item-color-swatch:hover,
+.item-color-swatch:focus-visible {
+  outline: none;
+  transform: translateY(-1px);
+  border-color: rgba(226, 232, 240, 0.64);
+}
+
+.item-color-swatch--active {
+  border-color: rgba(248, 250, 252, 0.9);
+  box-shadow: 0 0 0 2px rgb(15 23 42), 0 0 0 3px rgba(248, 250, 252, 0.68);
+}
+
+.item-color-swatch--custom {
+  position: relative;
+}
+
+.item-color-swatch--custom::after {
+  content: '';
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: rgb(226 232 240);
+  box-shadow: 0 0 0 1px rgb(15 23 42);
 }
 
 .ai-chat-section {

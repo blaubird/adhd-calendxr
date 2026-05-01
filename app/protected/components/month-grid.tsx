@@ -2,14 +2,14 @@
 
 import React from 'react';
 import { Item } from 'app/types';
-import { formatDayKey, nowInTz } from 'app/lib/datetime';
+import { formatDayKey, formatTimeValue, nowInTz } from 'app/lib/datetime';
+import { DEFAULT_ITEM_COLOR, RECURRING_ITEM_COLOR } from 'app/lib/item-colors';
 
 const WEEKDAY_HEADERS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 /** Default colors for dots */
-const DEFAULT_COLOR = '#ff96f5';
-const RECURRING_COLOR = '#67eb67';
 const DONE_COLOR = '#555';
+const MAX_VISIBLE_DOTS = 8;
 
 function getItemDotColor(item: Item): string {
   // Done items are always grey
@@ -17,8 +17,13 @@ function getItemDotColor(item: Item): string {
   if (isDone) return DONE_COLOR;
 
   if (item.color) return item.color;
-  if (item.isOccurrence || item.recurrenceRule) return RECURRING_COLOR;
-  return DEFAULT_COLOR;
+  if (item.isOccurrence || item.recurrenceRule) return RECURRING_ITEM_COLOR;
+  return DEFAULT_ITEM_COLOR;
+}
+
+function dotLabel(item: Item) {
+  const time = item.timeStart ? `${formatTimeValue(item.timeStart)} · ` : '';
+  return `${time}${item.title}`;
 }
 
 function DayCell({
@@ -28,6 +33,7 @@ function DayCell({
   isToday,
   isSelected,
   onSelect,
+  onPickItem,
 }: {
   dayNum: number;
   dayKey: string;
@@ -35,29 +41,44 @@ function DayCell({
   isToday: boolean;
   isSelected: boolean;
   onSelect: () => void;
+  onPickItem: (item: Item) => void;
 }) {
-  // Show all dots
-  const visibleItems = items;
-  const overflowCount = 0;
+  const overflowCount = Math.max(0, items.length - MAX_VISIBLE_DOTS);
+  const visibleLimit = overflowCount > 0 ? MAX_VISIBLE_DOTS - 1 : MAX_VISIBLE_DOTS;
+  const visibleItems = items.slice(0, visibleLimit);
 
   return (
-    <button
+    <div
       className={`month-cell ${isToday ? 'month-cell--today' : ''} ${isSelected ? 'month-cell--selected' : ''}`}
       onClick={onSelect}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onSelect();
+        }
+      }}
       aria-label={`Select ${dayKey}`}
-      type="button"
+      role="button"
+      tabIndex={0}
     >
       <span className={`month-cell-number ${isToday ? 'month-cell-number--today' : ''}`}>
         {dayNum}
       </span>
       {visibleItems.length > 0 && (
         <div className="month-cell-dots">
-          {visibleItems.map((item, i) => (
-            <span
+          {visibleItems.map((item) => (
+            <button
               key={String(item.id)}
               className={`month-dot ${item.status === 'done' ? 'month-dot--done' : ''}`}
               style={{ backgroundColor: getItemDotColor(item) }}
-              title={item.title}
+              title={dotLabel(item)}
+              aria-label={`Open ${dotLabel(item)}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                onPickItem(item);
+              }}
+              onKeyDown={(event) => event.stopPropagation()}
+              type="button"
             />
           ))}
           {overflowCount > 0 && (
@@ -65,7 +86,7 @@ function DayCell({
           )}
         </div>
       )}
-    </button>
+    </div>
   );
 }
 
@@ -79,6 +100,7 @@ export function MonthGrid({
   grouped,
   selectedDay,
   onSelectDay,
+  onPickItem,
 }: {
   year: number;
   month: number;
@@ -89,6 +111,7 @@ export function MonthGrid({
   grouped: Record<string, Item[]>;
   selectedDay: string;
   onSelectDay: (day: string) => void;
+  onPickItem: (item: Item) => void;
 }) {
   const todayStr = formatDayKey(nowInTz(new Date()));
 
@@ -121,6 +144,7 @@ export function MonthGrid({
               isToday={key === todayStr}
               isSelected={key === selectedDay}
               onSelect={() => onSelectDay(key)}
+              onPickItem={onPickItem}
             />
           );
         })}

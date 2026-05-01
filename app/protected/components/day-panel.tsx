@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Item, PlanningPeriod } from 'app/types';
 import { parseDayKey, formatDateFull, formatTimeRange } from 'app/lib/datetime';
+import { DEFAULT_ITEM_COLOR, RECURRING_ITEM_COLOR } from 'app/lib/item-colors';
 import {
   DndContext,
   DragOverlay,
@@ -16,8 +17,6 @@ import {
   DragStartEvent,
 } from '@dnd-kit/core';
 
-const DEFAULT_COLOR = '#ff96f5';
-const RECURRING_COLOR = '#67eb67';
 const DONE_COLOR = '#666';
 
 const PERIODS: Array<{ key: PlanningPeriod; start: number; end: number }> = [
@@ -50,8 +49,8 @@ function browserLanguage(): PeriodLanguage {
 function getItemAccentColor(item: Item): string {
   if (item.status === 'done') return DONE_COLOR;
   if (item.color) return item.color;
-  if (item.isOccurrence || item.recurrenceRule) return RECURRING_COLOR;
-  return DEFAULT_COLOR;
+  if (item.isOccurrence || item.recurrenceRule) return RECURRING_ITEM_COLOR;
+  return DEFAULT_ITEM_COLOR;
 }
 
 function itemPeriod(item: Item): PlanningPeriod | null {
@@ -715,7 +714,12 @@ export function DayPanel({
       <div className="day-panel-header">
         <div className="day-panel-header-copy">
           <p className="day-panel-weekday">{dayOfWeek}</p>
-          <h2 className="day-panel-date">{dayLabel}</h2>
+          <div className="day-panel-title-row">
+            <h2 className="day-panel-date">{dayLabel}</h2>
+            <button className="day-panel-toggle-btn" onClick={() => setShowDone((value) => !value)} type="button">
+              {showDone ? 'Hide done' : 'Show done'}
+            </button>
+          </div>
         </div>
         <div className="day-panel-header-actions">
           <button className="day-panel-canvas-btn" onClick={onOpenSearch} type="button" title="Search">
@@ -730,12 +734,6 @@ export function DayPanel({
             + Add
           </button>
         </div>
-      </div>
-
-      <div className="day-panel-status-row">
-        <button className="day-panel-toggle-btn" onClick={() => setShowDone((value) => !value)} type="button">
-          {showDone ? 'Hide done' : 'Show done'}
-        </button>
       </div>
 
       <div key={selectedDay} className="day-panel-items animate-fade-in">
@@ -786,10 +784,9 @@ export function DayPanel({
               >
                 <div className="day-panel-section-header">
                   <p className="day-panel-section-title">{labels[period.key]}</p>
-                  <span>{period.start}:00-{period.end}:00</span>
                 </div>
                 <div className="day-panel-section-list">
-                  {!hasRows && <p className="day-panel-section-empty">Drop tasks here.</p>}
+                  {activeDragId && !hasRows && <p className="day-panel-section-empty">Drop tasks here.</p>}
                   <DropSlot id={`slot:${period.key}:0`} active={Boolean(activeDragId)} />
                   {rows.map((row, index) => (
                     <React.Fragment key={row.id}>

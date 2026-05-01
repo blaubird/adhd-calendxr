@@ -496,6 +496,7 @@ export default function CalendarShell({
           grouped={cal.grouped}
           selectedDay={cal.selectedDay}
           onSelectDay={cal.selectDay}
+          onPickItem={navigateAndHighlight}
         />
       </main>
 

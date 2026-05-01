@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { ItemKind, TaskStatus } from 'app/types';
 import { formatDayEU, parseDayEU, parseDayKey } from 'app/lib/datetime';
+import { DEFAULT_ITEM_COLOR, ITEM_COLOR_PALETTE, RECURRING_ITEM_COLOR } from 'app/lib/item-colors';
 import { TimeField } from './form-fields';
 import { ItemFormState } from '../hooks/use-calendar-data';
 
@@ -25,6 +26,10 @@ function browserRecurrenceLanguage(): RecurrenceLanguage {
   if (code.startsWith('uk')) return 'uk';
   if (code.startsWith('ru')) return 'ru';
   return 'en';
+}
+
+function isPaletteColor(color: string | null | undefined) {
+  return Boolean(color && ITEM_COLOR_PALETTE.some((entry) => entry === color));
 }
 
 export function deriveRecurrenceOption(rule: string | null | undefined): RecurrenceOption {
@@ -143,6 +148,8 @@ export function EditModal({
 
   // Recurrence controls are disabled when editing a single occurrence
   const recurrenceDisabled = editScope === 'occurrence' && Boolean(local.isOccurrence || local.parentId);
+  const currentColor = local.color || (local.recurrenceRule ? RECURRING_ITEM_COLOR : DEFAULT_ITEM_COLOR);
+  const hasCustomColor = Boolean(local.color && !isPaletteColor(local.color));
 
   useEffect(() => {
     setLocal(values);
@@ -294,15 +301,36 @@ export function EditModal({
             </div>
 
             <div className="grid grid-cols-2 gap-3 text-sm">
-              <label className="flex flex-col gap-1">
+              <div className="flex flex-col gap-1">
                 <span className="text-slate-300">Color</span>
-                <input
-                  type="color"
-                  className="rounded-lg border border-slate-700 bg-slate-900 h-[38px] w-full px-1 py-1 cursor-pointer"
-                  value={local.color || (local.recurrenceRule ? '#67eb67' : '#ff96f5')}
-                  onChange={(e) => update('color', e.target.value)}
-                />
-              </label>
+                <div className="item-color-palette" role="radiogroup" aria-label="Item color">
+                  {ITEM_COLOR_PALETTE.map((color) => (
+                    <button
+                      key={color}
+                      type="button"
+                      className={`item-color-swatch ${currentColor === color ? 'item-color-swatch--active' : ''}`}
+                      style={{ backgroundColor: color }}
+                      title={color}
+                      aria-label={`Use color ${color}`}
+                      aria-checked={currentColor === color}
+                      role="radio"
+                      onClick={() => update('color', color)}
+                    />
+                  ))}
+                  {hasCustomColor && local.color && (
+                    <button
+                      type="button"
+                      className="item-color-swatch item-color-swatch--active item-color-swatch--custom"
+                      style={{ backgroundColor: local.color }}
+                      title={`Current custom color ${local.color}`}
+                      aria-label={`Current custom color ${local.color}`}
+                      aria-checked="true"
+                      role="radio"
+                      onClick={() => update('color', local.color)}
+                    />
+                  )}
+                </div>
+              </div>
               <label className="flex flex-col gap-1">
                 <span className="text-slate-300">Day</span>
                 <input
