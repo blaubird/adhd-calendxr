@@ -51,10 +51,14 @@
   --font-lg: 16px;
   --font-xl: 20px;
 
-  --sidebar-width: 300px;
-  --day-panel-width: 400px;
-  --calendar-min-width: 1180px;
-  --calendar-min-height: 520px;
+  --app-topbar-height: 64px;
+  --sidebar-width: 252px;
+  --day-panel-width: 348px;
+  --calendar-center-max: 1000px;
+  --calendar-shell-gap: 14px;
+  --calendar-shell-padding: 12px;
+  --calendar-min-width: 0;
+  --calendar-min-height: 0;
 }
 
 /* ═══════════════════════════════════════════════════
@@ -162,11 +166,13 @@ textarea {
 
 .app-root {
   min-height: 100vh;
+  min-height: 100dvh;
   background: var(--bg-root);
 }
 
 .app-shell {
   height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -177,11 +183,11 @@ textarea {
 }
 
 .app-topbar {
-  min-height: 82px;
+  min-height: var(--app-topbar-height);
   display: flex;
   align-items: center;
-  gap: 34px;
-  padding: 0 27px;
+  gap: 26px;
+  padding: 0 22px;
   border-bottom: 1px solid rgba(100, 160, 240, 0.1);
   background: rgba(5, 9, 16, 0.76);
   backdrop-filter: var(--glass-blur);
@@ -192,17 +198,17 @@ textarea {
 .app-brand {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   color: var(--text-primary);
-  font-size: 24px;
+  font-size: 21px;
   font-weight: 800;
   letter-spacing: 0.02em;
   white-space: nowrap;
 }
 
 .app-brand-mark {
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
   border-radius: 999px;
   position: relative;
   background: linear-gradient(135deg, #0066d8, #22d3ee);
@@ -212,11 +218,11 @@ textarea {
 .app-brand-mark::after {
   content: '';
   position: absolute;
-  left: 7px;
-  top: 14px;
-  width: 20px;
-  height: 8px;
-  border-top: 3px solid rgba(219, 246, 255, 0.9);
+  left: 6px;
+  top: 13px;
+  width: 18px;
+  height: 7px;
+  border-top: 2.5px solid rgba(219, 246, 255, 0.9);
   border-radius: 50%;
   transform: rotate(2deg);
 }
@@ -224,7 +230,7 @@ textarea {
 .app-tabs {
   display: flex;
   align-items: stretch;
-  gap: 30px;
+  gap: 26px;
   height: 100%;
 }
 
@@ -233,7 +239,7 @@ textarea {
   border: 0;
   background: transparent;
   color: var(--text-secondary);
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.01em;
@@ -257,8 +263,8 @@ textarea {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 18px;
-  height: 3px;
+  bottom: 13px;
+  height: 2px;
   border-radius: 999px;
   background: #00d5ff;
   box-shadow: 0 0 16px rgba(0, 213, 255, 0.44);
@@ -268,13 +274,13 @@ textarea {
   margin-left: auto;
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 17px;
   min-width: 0;
 }
 
 .app-icon-btn {
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   position: relative;
   border: 0;
   background: transparent;
@@ -319,7 +325,7 @@ textarea {
   inset: 0;
   display: grid;
   place-items: center;
-  font-size: 25px;
+  font-size: 23px;
   line-height: 1;
   color: currentColor;
   filter: grayscale(1);
@@ -348,17 +354,6 @@ textarea {
   background: currentColor;
 }
 
-.app-notification-dot {
-  position: absolute;
-  right: 3px;
-  top: 1px;
-  width: 9px;
-  height: 9px;
-  border-radius: 999px;
-  background: #00d5ff;
-  box-shadow: 0 0 10px rgba(0, 213, 255, 0.68);
-}
-
 .app-user-chip {
   display: flex;
   align-items: center;
@@ -370,8 +365,8 @@ textarea {
 }
 
 .app-user-avatar {
-  width: 38px;
-  height: 38px;
+  width: 34px;
+  height: 34px;
   display: grid;
   place-items: center;
   border-radius: 999px;
@@ -425,7 +420,11 @@ textarea {
   min-width: var(--calendar-min-width);
   min-height: var(--calendar-min-height);
   overflow: hidden;
-  gap: 0;
+  gap: var(--calendar-shell-gap);
+  padding: var(--calendar-shell-padding);
+  background:
+    radial-gradient(circle at 52% 6%, rgba(28, 60, 105, 0.1), transparent 38%),
+    var(--bg-root);
 }
 
 .calendar-error {
@@ -439,13 +438,14 @@ textarea {
    ═══════════════════════════════════════════════════ */
 
 .sidebar {
-  background: rgba(8, 13, 22, 0.72);
-  backdrop-filter: var(--glass-blur);
-  border-right: 1px solid var(--glass-border);
+  background: rgba(8, 15, 28, 0.58);
+  backdrop-filter: blur(18px) saturate(120%);
+  border: 1px solid rgba(120, 180, 255, 0.14);
+  border-radius: var(--radius-lg);
   display: flex;
   flex-direction: column;
-  padding: 10px 10px;
-  gap: 10px;
+  padding: 8px;
+  gap: 8px;
   position: relative;
   top: 0;
   height: 100%;
@@ -455,11 +455,11 @@ textarea {
 }
 
 .sidebar-card {
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--glass-border);
-  background: var(--glass-bg);
-  backdrop-filter: blur(8px);
-  padding: 10px 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(120, 180, 255, 0.13);
+  background: rgba(10, 18, 34, 0.56);
+  backdrop-filter: blur(12px) saturate(118%);
+  padding: 8px;
   box-shadow: var(--shadow-card);
   transition: border-color 0.18s ease-out, box-shadow 0.18s ease-out, background 0.18s ease-out;
 }
@@ -472,7 +472,7 @@ textarea {
 .sidebar-header {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .sidebar-month-nav {
@@ -483,8 +483,8 @@ textarea {
 }
 
 .sidebar-nav-btn {
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -513,26 +513,26 @@ textarea {
 }
 
 .sidebar-month-name {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--text-primary);
   letter-spacing: 0.01em;
 }
 
 .sidebar-year {
-  font-size: var(--font-sm);
+  font-size: var(--font-xs);
   color: var(--text-muted);
 }
 
 .sidebar-today-btn {
   width: 100%;
-  padding: 5px 10px;
+  padding: 4px 9px;
   border-radius: var(--radius-md);
   border: 1px solid var(--glass-border);
   background: var(--glass-bg);
   backdrop-filter: blur(6px);
   color: var(--text-secondary);
-  font-size: var(--font-sm);
+  font-size: var(--font-xs);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.16s ease-out;
@@ -602,8 +602,8 @@ textarea {
 }
 
 .sidebar-logout-btn {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   position: relative;
   border: 0;
   border-radius: var(--radius-sm);
@@ -648,7 +648,7 @@ textarea {
 }
 
 .live-clock-time {
-  font-size: 22px;
+  font-size: 19px;
   font-weight: 700;
   color: var(--text-primary);
   letter-spacing: 0.02em;
@@ -660,7 +660,7 @@ textarea {
 }
 
 .live-clock-date {
-  font-size: var(--font-sm);
+  font-size: var(--font-xs);
   color: var(--text-secondary);
   margin-top: 2px;
 }
@@ -676,7 +676,7 @@ textarea {
 .weather-widget {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   margin: 0;
   padding: 0;
   border: none;
@@ -697,20 +697,20 @@ textarea {
 
 .weather-row {
   display: grid;
-  grid-template-columns: 28px 20px minmax(0, 1fr);
+  grid-template-columns: 26px 18px minmax(0, 1fr);
   align-items: center;
-  gap: 7px;
+  gap: 6px;
   color: var(--text-secondary);
 }
 
 .weather-label {
   color: var(--text-primary);
-  font-size: var(--font-sm);
+  font-size: var(--font-xs);
   font-weight: 600;
 }
 
 .weather-icon {
-  font-size: var(--font-md);
+  font-size: 13px;
   line-height: 1;
   text-align: center;
 }
@@ -724,7 +724,7 @@ textarea {
 
 .weather-main-temp {
   color: var(--text-primary);
-  font-size: var(--font-sm);
+  font-size: var(--font-xs);
   font-weight: 600;
   line-height: 1;
   margin-bottom: 4px;
@@ -733,7 +733,7 @@ textarea {
 .weather-range {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   width: 100%;
 }
 
@@ -754,7 +754,7 @@ textarea {
 
 .weather-bar {
   flex: 1;
-  height: 5px;
+  height: 4px;
   min-width: 28px;
   border-radius: 999px;
   background: linear-gradient(90deg, #0c4a6e, #9f1239);
@@ -770,19 +770,19 @@ textarea {
 }
 
 .moon-phase {
-  gap: 8px !important;
+  gap: 6px !important;
   margin-top: 0 !important;
   padding-top: 0 !important;
   border: none !important;
 }
 
 .moon-phase .w-32 {
-  width: 76px !important;
-  height: 76px !important;
+  width: 64px !important;
+  height: 64px !important;
 }
 
 .moon-phase .text-sm {
-  font-size: 12px !important;
+  font-size: 11px !important;
 }
 
 .sidebar-next-up {
@@ -864,26 +864,50 @@ textarea {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 12px 18px;
-  overflow-y: auto;
+  justify-content: center;
+  padding: 0;
+  overflow: hidden;
   background: var(--bg-root);
   min-height: 0;
-  scrollbar-gutter: stable;
 }
 
 .month-grid-wrapper {
   flex: 1;
   display: flex;
   flex-direction: column;
+  align-items: center;
+  justify-content: center;
   min-height: 0;
-  width: 100%;
+  width: min(100%, var(--calendar-center-max));
+  height: 100%;
+  padding: clamp(14px, 2dvh, 22px) clamp(16px, 2.4dvw, 30px) clamp(16px, 2.4dvh, 26px);
+  border: 1px solid rgba(120, 180, 255, 0.14);
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(circle at 50% 6%, rgba(20, 45, 78, 0.12), transparent 44%),
+    rgba(8, 15, 28, 0.54);
+  backdrop-filter: blur(18px) saturate(120%);
+  box-shadow: var(--shadow-card);
+}
+
+.month-grid-stage {
+  width: min(
+    100%,
+    var(--calendar-center-max),
+    calc(100dvh - var(--app-topbar-height) - var(--calendar-shell-padding) - var(--calendar-shell-padding) - 54px)
+  );
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .month-weekday-headers {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 6px;
-  margin-bottom: 6px;
+  gap: 5px;
+  margin-bottom: 5px;
+  flex: 0 0 auto;
 }
 
 .month-weekday-header {
@@ -893,14 +917,17 @@ textarea {
   text-transform: uppercase;
   letter-spacing: 0.1em;
   color: var(--text-dimmed);
-  padding: 4px 0 6px;
+  padding: 2px 0 5px;
 }
 
 .month-grid {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-auto-rows: minmax(0, 1fr);
   align-content: start;
   gap: 5px;
+  width: 100%;
+  aspect-ratio: var(--month-grid-ratio);
   flex: 0 1 auto;
   min-height: 0;
 }
@@ -910,9 +937,8 @@ textarea {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 4px;
-  padding: 8px 9px;
-  aspect-ratio: 1 / 1;
+  gap: 3px;
+  padding: clamp(5px, 0.75dvh, 8px) clamp(6px, 0.7dvw, 9px);
   min-height: 0;
   border-radius: var(--radius-md);
   border: 1px solid var(--glass-border);
@@ -929,8 +955,8 @@ textarea {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: rgba(10, 16, 28, 0.52);
-  backdrop-filter: blur(10px) saturate(115%);
+  background: rgba(10, 18, 34, 0.56);
+  backdrop-filter: blur(12px) saturate(118%);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
   z-index: -1;
   transition: background 0.18s ease-out;
@@ -958,7 +984,6 @@ textarea {
   cursor: default;
   border: none;
   min-height: 0;
-  aspect-ratio: auto;
 }
 
 .month-cell--empty .month-cell-bg {
@@ -990,7 +1015,7 @@ textarea {
 }
 
 .month-cell-number {
-  font-size: var(--font-base);
+  font-size: 12px;
   font-weight: 500;
   color: var(--text-secondary);
   line-height: 1;
@@ -1006,18 +1031,18 @@ textarea {
 .month-cell-dots {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 3px;
   max-width: 100%;
   align-items: center;
   margin-top: auto;
   position: relative;
   z-index: 2;
-  padding: 2px 0;
+  padding: 1px 0;
 }
 
 .month-dot {
-  width: 9px;
-  height: 9px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   border: 0;
   padding: 0;
@@ -1052,9 +1077,10 @@ textarea {
    ═══════════════════════════════════════════════════ */
 
 .day-panel {
-  background: rgba(8, 13, 22, 0.72);
-  backdrop-filter: var(--glass-blur);
-  border-left: 1px solid var(--glass-border);
+  background: rgba(8, 15, 28, 0.58);
+  backdrop-filter: blur(18px) saturate(120%);
+  border: 1px solid rgba(120, 180, 255, 0.14);
+  border-radius: var(--radius-lg);
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -1065,9 +1091,9 @@ textarea {
 .day-panel-header {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 12px 14px 10px;
-  border-bottom: 1px solid var(--glass-border);
+  gap: 5px;
+  padding: 10px 12px 9px;
+  border-bottom: 1px solid rgba(120, 180, 255, 0.12);
   flex-shrink: 0;
 }
 
@@ -1094,7 +1120,7 @@ textarea {
 }
 
 .day-panel-date {
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 700;
   color: var(--text-primary);
   overflow-wrap: anywhere;
@@ -1102,13 +1128,13 @@ textarea {
 }
 
 .day-panel-add-btn {
-  padding: 5px 12px;
+  padding: 4px 10px;
   border-radius: var(--radius-md);
   border: 1px solid rgba(56, 189, 248, 0.35);
   background: rgba(56, 189, 248, 0.08);
   backdrop-filter: blur(6px);
   color: var(--accent-blue);
-  font-size: var(--font-sm);
+  font-size: var(--font-xs);
   font-weight: 600;
   cursor: pointer;
   transition: all 0.16s ease-out;
@@ -1124,22 +1150,22 @@ textarea {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
-  padding: 5px 10px;
+  gap: 6px;
+  padding: 4px 8px;
   border-radius: var(--radius-md);
   border: 1px solid var(--glass-border);
   background: var(--glass-bg);
   backdrop-filter: blur(6px);
   color: var(--text-secondary);
-  font-size: var(--font-sm);
+  font-size: var(--font-xs);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.16s ease-out;
 }
 
 .day-panel-btn-icon {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   position: relative;
   display: inline-block;
   flex: 0 0 auto;
@@ -1151,9 +1177,9 @@ textarea {
   position: absolute;
   left: 2px;
   top: 2px;
-  width: 9px;
-  height: 9px;
-  border: 2px solid currentColor;
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid currentColor;
   border-radius: 999px;
 }
 
@@ -1162,8 +1188,8 @@ textarea {
   position: absolute;
   right: 1px;
   bottom: 2px;
-  width: 7px;
-  height: 2px;
+  width: 6px;
+  height: 1.5px;
   border-radius: 999px;
   background: currentColor;
   transform: rotate(45deg);
@@ -1200,10 +1226,10 @@ textarea {
 .day-panel-items {
   flex: 1;
   overflow-y: auto;
-  padding: 8px 12px 14px;
+  padding: 7px 10px 10px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   min-height: 0;
   scrollbar-gutter: stable;
 }
@@ -1230,8 +1256,8 @@ textarea {
 .day-panel-section {
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  padding: 6px;
+  gap: 4px;
+  padding: 5px;
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
   background: rgba(8, 14, 26, 0.35);
@@ -1240,8 +1266,8 @@ textarea {
 }
 
 .day-panel-period-section {
-  gap: 4px;
-  padding: 3px 1px 1px;
+  gap: 3px;
+  padding: 2px 1px 0;
   border: 1px solid transparent;
   border-radius: 0;
   background: transparent;
@@ -1296,8 +1322,8 @@ textarea {
 .day-panel-section-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  min-height: 26px;
+  gap: 3px;
+  min-height: 22px;
 }
 
 .day-panel-period-section .day-panel-section-list {
@@ -1314,7 +1340,7 @@ textarea {
 .day-panel-empty {
   font-size: var(--font-base);
   color: var(--text-dimmed);
-  padding: 32px 16px;
+  padding: 22px 12px;
   text-align: center;
   font-style: italic;
   animation: fade-in 0.3s ease-out forwards;
@@ -1326,9 +1352,9 @@ textarea {
   border-radius: var(--radius-md);
   border: 1px solid var(--glass-border);
   border-left: 3px solid var(--accent-pink);
-  background: var(--glass-bg);
-  backdrop-filter: blur(8px);
-  min-height: 37px;
+  background: rgba(10, 18, 34, 0.58);
+  backdrop-filter: blur(10px) saturate(118%);
+  min-height: 33px;
   transition: border-color 0.16s ease-out, background 0.16s ease-out, box-shadow 0.16s ease-out, opacity 0.14s ease-out;
   box-shadow: 0 2px 10px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.03);
 }
@@ -1360,8 +1386,8 @@ textarea {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 6px;
-  padding: 6px 8px;
+  gap: 5px;
+  padding: 5px 7px;
   cursor: pointer;
 }
 
@@ -1370,13 +1396,13 @@ textarea {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
 }
 
 .day-panel-card-title-row {
   display: flex;
   align-items: baseline;
-  gap: 6px;
+  gap: 5px;
   flex-wrap: wrap;
 }
 
@@ -1384,7 +1410,7 @@ textarea {
   border: none;
   background: transparent;
   padding: 0;
-  font-size: var(--font-xs);
+  font-size: 10px;
   font-weight: 600;
   color: var(--accent-blue);
   white-space: nowrap;
@@ -1401,7 +1427,7 @@ textarea {
   background: transparent;
   padding: 0;
   text-align: left;
-  font-size: var(--font-sm);
+  font-size: 11px;
   font-weight: 600;
   color: var(--text-primary);
   word-break: break-word;
@@ -1443,7 +1469,7 @@ textarea {
 
 .day-panel-drag-handle {
   width: 14px;
-  height: 28px;
+  height: 24px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1459,7 +1485,7 @@ textarea {
 
 .day-panel-drag-handle-mark {
   width: 2px;
-  height: 16px;
+  height: 14px;
   border-radius: 999px;
   background: currentColor;
   box-shadow: 4px 0 0 rgba(148, 163, 184, 0.2);
@@ -1559,7 +1585,7 @@ textarea {
 
 .day-panel-card-actions {
   display: flex;
-  gap: 2px;
+  gap: 1px;
   flex-shrink: 0;
   opacity: 0.6;
   transition: opacity 0.2s ease;
@@ -1570,8 +1596,8 @@ textarea {
 }
 
 .day-panel-action-btn {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1579,7 +1605,7 @@ textarea {
   border: none;
   background: transparent;
   color: var(--text-muted);
-  font-size: var(--font-base);
+  font-size: 12px;
   cursor: pointer;
   transition: all 0.15s ease;
 }
@@ -1598,15 +1624,15 @@ textarea {
 }
 
 .day-panel-card-details {
-  padding: 0 10px 9px;
-  font-size: var(--font-sm);
+  padding: 0 8px 7px;
+  font-size: var(--font-xs);
   color: var(--text-secondary);
   white-space: pre-wrap;
   word-break: break-word;
   line-height: 1.5;
   border-top: 1px solid var(--border-subtle);
   margin-top: 0;
-  padding-top: 8px;
+  padding-top: 6px;
   animation: fade-in 0.15s ease-out forwards;
 }
 
@@ -1620,8 +1646,63 @@ textarea {
    ═══════════════════════════════════════════════════ */
 
 .day-panel-ai-section {
-  border-top: 1px solid var(--border-subtle);
+  max-height: min(30dvh, 280px);
+  overflow-y: auto;
+  flex-shrink: 0;
+  border-top: 1px solid rgba(120, 180, 255, 0.12);
   padding: 8px;
+  background: rgba(10, 18, 34, 0.28);
+}
+
+.day-panel-ai-toggle-wrap {
+  flex-shrink: 0;
+  padding: 7px;
+  border-top: 1px solid rgba(120, 180, 255, 0.12);
+}
+
+.day-panel-ai-toggle {
+  width: 100%;
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 5px 9px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(120, 180, 255, 0.14);
+  background: rgba(10, 18, 34, 0.52);
+  color: var(--text-secondary);
+  font-size: var(--font-xs);
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  transition: color 0.16s ease, border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+}
+
+.day-panel-ai-toggle:hover,
+.day-panel-ai-toggle:focus-visible {
+  outline: none;
+  color: var(--text-primary);
+  border-color: rgba(56, 189, 248, 0.24);
+  background: rgba(15, 26, 46, 0.64);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 0 12px rgba(56, 189, 248, 0.06);
+}
+
+.day-panel-ai-toggle-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.day-panel-ai-toggle-label span {
+  color: var(--accent-blue);
+}
+
+.day-panel-ai-toggle-state {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: var(--font-xs);
 }
 
 .search-overlay {
@@ -1732,7 +1813,7 @@ textarea {
 
 .calendar-toast {
   position: fixed;
-  right: calc(var(--day-panel-width) + 18px);
+  right: calc(var(--day-panel-width) + var(--calendar-shell-gap) + 18px);
   bottom: 16px;
   z-index: 50;
   display: flex;
@@ -2104,36 +2185,102 @@ textarea {
 @media (max-width: 1100px) {
   :root {
     --sidebar-width: 220px;
-    --day-panel-width: 320px;
-    --calendar-min-width: 920px;
+    --day-panel-width: 300px;
+    --calendar-center-max: 820px;
+    --calendar-shell-gap: 10px;
+    --calendar-shell-padding: 8px;
+    --calendar-min-width: 0;
   }
 }
 
 @media (max-height: 760px) {
   :root {
-    --calendar-min-height: 500px;
+    --app-topbar-height: 58px;
+    --calendar-shell-padding: 8px;
+    --calendar-shell-gap: 10px;
+    --calendar-min-height: 0;
+  }
+
+  .app-brand {
+    font-size: 19px;
+  }
+
+  .app-brand-mark {
+    width: 27px;
+    height: 27px;
+  }
+
+  .app-tab {
+    font-size: 13px;
   }
 
   .sidebar {
-    padding: 7px 8px;
-    gap: 7px;
+    padding: 6px;
+    gap: 6px;
+  }
+
+  .sidebar-card {
+    padding: 6px;
+  }
+
+  .sidebar-nav-btn {
+    width: 24px;
+    height: 24px;
+  }
+
+  .sidebar-today-btn {
+    padding: 3px 8px;
   }
 
   .weather-widget {
-    gap: 7px;
-    margin-top: 8px;
-    padding-top: 8px;
+    gap: 5px;
+    margin-top: 0;
+    padding-top: 0;
   }
 
   .moon-phase {
-    gap: 10px !important;
-    margin-top: 12px !important;
-    padding-top: 12px !important;
+    gap: 5px !important;
+    margin-top: 0 !important;
+    padding-top: 0 !important;
   }
 
   .moon-phase .w-32 {
-    width: 84px !important;
-    height: 84px !important;
+    width: 56px !important;
+    height: 56px !important;
+  }
+
+  .live-clock-time {
+    font-size: 17px;
+  }
+
+  .month-grid-wrapper {
+    padding: 12px 16px 14px;
+  }
+
+  .month-weekday-header {
+    padding-bottom: 3px;
+  }
+
+  .month-grid,
+  .month-weekday-headers {
+    gap: 4px;
+  }
+
+  .month-cell {
+    padding: 5px 6px;
+  }
+
+  .day-panel-header {
+    padding: 8px 10px;
+  }
+
+  .day-panel-items {
+    padding: 6px 8px 8px;
+    gap: 6px;
+  }
+
+  .day-panel-ai-toggle-wrap {
+    padding: 6px;
   }
 }
 

@@ -817,19 +817,19 @@ export function DayPanel({
         </DndContext>
       </div>
 
-      <div className="p-2 border-t border-slate-800 shrink-0">
+      <div className="day-panel-ai-toggle-wrap">
         <button
           onClick={() => setAiOpen(!aiOpen)}
-          className="w-full py-1.5 px-2.5 rounded-lg border border-slate-700 bg-slate-900/50 hover:bg-slate-800 text-slate-200 text-xs font-medium flex justify-between items-center transition-all shadow-sm"
+          className="day-panel-ai-toggle"
           type="button"
         >
-          <span className="flex items-center gap-2"><span className="text-sky-400">*</span> AI Drafts</span>
-          <span className="text-slate-500 text-xs">{aiOpen ? 'Hide' : 'Open'}</span>
+          <span className="day-panel-ai-toggle-label"><span aria-hidden="true">*</span> AI Drafts</span>
+          <span className="day-panel-ai-toggle-state">{aiOpen ? 'Hide' : 'Open'}</span>
         </button>
       </div>
 
       {aiOpen && (
-        <div className="day-panel-ai-section bg-slate-900/30 border-t border-slate-800 animate-slide-up overflow-y-auto shrink-0" style={{ maxHeight: '34vh' }}>
+        <div className="day-panel-ai-section animate-slide-up">
           {chatSection}
         </div>
       )}

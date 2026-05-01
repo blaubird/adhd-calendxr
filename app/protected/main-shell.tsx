@@ -70,9 +70,7 @@ export default function MainShell({
         <div className="app-topbar-actions">
           <button className="app-icon-btn app-icon-btn--search" type="button" aria-label="Search" onClick={() => setActiveTab('calendar')} />
           <button className="app-icon-btn app-icon-btn--settings" type="button" aria-label="Settings" />
-          <button className="app-icon-btn app-icon-btn--notifications" type="button" aria-label="Notifications">
-            <span className="app-notification-dot" />
-          </button>
+          <button className="app-icon-btn app-icon-btn--notifications" type="button" aria-label="Notifications" />
           <div className="app-user-chip" title={userEmail}>
             <span className="app-user-avatar">{accountInitial}</span>
             <span className="app-user-name">{accountLabel}</span>

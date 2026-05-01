@@ -127,40 +127,46 @@ export function MonthGrid({
   onPickItem: (item: Item) => void;
 }) {
   const todayStr = formatDayKey(nowInTz(new Date()));
+  const rowCount = Math.ceil((firstDayWeekday + daysInMonth) / 7);
 
   return (
-    <div className="month-grid-wrapper animate-fade-in">
-      {/* Weekday headers */}
-      <div className="month-weekday-headers">
-        {WEEKDAY_HEADERS.map((d) => (
-          <div key={d} className="month-weekday-header">{d}</div>
-        ))}
-      </div>
+    <div
+      className="month-grid-wrapper animate-fade-in"
+      style={{ '--month-grid-ratio': `7 / ${rowCount}` } as React.CSSProperties}
+    >
+      <div className="month-grid-stage">
+        {/* Weekday headers */}
+        <div className="month-weekday-headers">
+          {WEEKDAY_HEADERS.map((d) => (
+            <div key={d} className="month-weekday-header">{d}</div>
+          ))}
+        </div>
 
-      {/* Day cells grid */}
-      <div className="month-grid">
-        {/* Empty cells before the 1st */}
-        {Array.from({ length: firstDayWeekday }).map((_, i) => (
-          <div key={`empty-${i}`} className="month-cell month-cell--empty" />
-        ))}
+        {/* Day cells grid */}
+        <div className="month-grid">
+          {/* Empty cells before the 1st */}
+          {Array.from({ length: firstDayWeekday }).map((_, i) => (
+            <div key={`empty-${i}`} className="month-cell month-cell--empty" />
+          ))}
 
-        {/* Actual day cells */}
-        {dayNumbers.map((dayNum) => {
-          const key = dayKeyFn(dayNum);
-          const dayItems = grouped[key] || [];
-          return (
-            <DayCell
-              key={dayNum}
-              dayNum={dayNum}
-              dayKey={key}
-              items={dayItems}
-              isToday={key === todayStr}
-              isSelected={key === selectedDay}
-              onSelect={() => onSelectDay(key)}
-              onPickItem={onPickItem}
-            />
-          );
-        })}
+          {/* Actual day cells */}
+          {dayNumbers.map((dayNum) => {
+            const key = dayKeyFn(dayNum);
+            const dayItems = grouped[key] || [];
+            return (
+              <DayCell
+                key={dayNum}
+                dayNum={dayNum}
+                dayKey={key}
+                items={dayItems}
+                isToday={key === todayStr}
+                isSelected={key === selectedDay}
+                onSelect={() => onSelectDay(key)}
+                onPickItem={onPickItem}
+              />
+            );
+          })}
+        </div>
       </div>
     </div>
   );
