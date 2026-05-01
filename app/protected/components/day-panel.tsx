@@ -221,7 +221,7 @@ function ItemCard({
   const isRecurring = Boolean(item.isOccurrence || item.recurrenceRule);
   const inlineDisabled = !isEditableNormalItem(item);
 
-  const timeDisplay = formatTimeRange(item.timeStart, item.timeEnd) || (inlineDisabled ? null : 'No time');
+  const timeDisplay = formatTimeRange(item.timeStart, item.timeEnd);
 
   useEffect(() => {
     setTitleValue(item.title);
@@ -293,12 +293,13 @@ function ItemCard({
           {dragHandleProps && (
             <button
               className="day-panel-drag-handle"
+              aria-label="Drag task"
               title="Drag task"
               type="button"
               onClick={(event) => event.stopPropagation()}
               {...dragHandleProps}
             >
-              ::
+              <span className="day-panel-drag-handle-mark" aria-hidden="true" />
             </button>
           )}
           <div className="day-panel-card-content">
@@ -753,25 +754,26 @@ export function DayPanel({
             setOverSlotId(null);
           }}
         >
-          <DroppableSection
-            id="unplanned"
-            className={`day-panel-section ${overSlotId?.startsWith('slot:unplanned:') ? 'day-panel-section--slot-over' : ''}`}
-          >
-            <div className="day-panel-section-header">
-              <p className="day-panel-section-title">Tasks</p>
-              <span>{unplannedTasks.length}</span>
-            </div>
-            <div className="day-panel-section-list">
-              {unplannedTasks.length === 0 && <p className="day-panel-section-empty">No unplanned tasks.</p>}
-              <DropSlot id="slot:unplanned:0" active={Boolean(activeDragId)} />
-              {unplannedTasks.map((item, index) => (
-                <React.Fragment key={String(item.id)}>
-                  {renderCard(item, isEditableNormalItem(item))}
-                  <DropSlot id={`slot:unplanned:${index + 1}`} active={Boolean(activeDragId)} />
-                </React.Fragment>
-              ))}
-            </div>
-          </DroppableSection>
+          {unplannedTasks.length > 0 && (
+            <DroppableSection
+              id="unplanned"
+              className={`day-panel-section ${overSlotId?.startsWith('slot:unplanned:') ? 'day-panel-section--slot-over' : ''}`}
+            >
+              <div className="day-panel-section-header">
+                <p className="day-panel-section-title">Tasks</p>
+                <span>{unplannedTasks.length}</span>
+              </div>
+              <div className="day-panel-section-list">
+                <DropSlot id="slot:unplanned:0" active={Boolean(activeDragId)} />
+                {unplannedTasks.map((item, index) => (
+                  <React.Fragment key={String(item.id)}>
+                    {renderCard(item, isEditableNormalItem(item))}
+                    <DropSlot id={`slot:unplanned:${index + 1}`} active={Boolean(activeDragId)} />
+                  </React.Fragment>
+                ))}
+              </div>
+            </DroppableSection>
+          )}
 
           {PERIODS.map((period) => {
             const rows = periodRows[period.key];

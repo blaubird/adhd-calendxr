@@ -956,20 +956,43 @@ textarea {
 }
 
 .day-panel-drag-handle {
-  width: 18px;
-  height: 24px;
+  width: 14px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
   border: none;
-  border-radius: var(--radius-sm);
+  border-radius: 999px;
   background: transparent;
-  color: var(--text-dimmed);
+  color: rgba(148, 163, 184, 0.34);
   cursor: grab;
-  font-size: 11px;
-  letter-spacing: -1px;
+  opacity: 0.55;
+  transition: opacity 0.16s ease, color 0.16s ease, background 0.16s ease;
 }
 
-.day-panel-drag-handle:hover {
-  color: var(--accent-blue);
+.day-panel-drag-handle-mark {
+  width: 2px;
+  height: 16px;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 4px 0 0 rgba(148, 163, 184, 0.2);
+}
+
+.day-panel-card:hover .day-panel-drag-handle,
+.day-panel-drag-handle:focus-visible {
+  opacity: 1;
+  color: rgba(148, 163, 184, 0.56);
+}
+
+.day-panel-drag-handle:hover,
+.day-panel-drag-handle:focus-visible {
+  background: rgba(148, 163, 184, 0.07);
+}
+
+.day-panel-drag-handle:active {
+  cursor: grabbing;
+  color: rgba(56, 189, 248, 0.72);
   background: rgba(56, 189, 248, 0.08);
 }
 
