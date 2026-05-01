@@ -95,6 +95,7 @@ export default function CalendarShell({
   initialItems,
   initialMonth,
   userEmail,
+  onSignOut,
   onSelectedDayChange,
   onMonthChange,
   onOpenDayCanvas,
@@ -102,6 +103,7 @@ export default function CalendarShell({
   initialItems: Item[];
   initialMonth: string;
   userEmail: string;
+  onSignOut: () => Promise<void>;
   onSelectedDayChange?: (day: string) => void;
   onMonthChange?: (month: string) => void;
   onOpenDayCanvas?: (day: string) => void;
@@ -479,6 +481,7 @@ export default function CalendarShell({
         onNext={cal.goNextMonth}
         onToday={cal.goToday}
         userEmail={userEmail}
+        onSignOut={onSignOut}
         items={cal.items}
         onPickNextUp={navigateAndHighlight}
       />

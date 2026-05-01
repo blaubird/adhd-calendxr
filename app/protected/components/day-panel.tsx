@@ -721,11 +721,13 @@ export function DayPanel({
         <h2 className="day-panel-date">{dayLabel}</h2>
         <div className="day-panel-header-actions">
           <button className="day-panel-canvas-btn" onClick={onOpenSearch} type="button" title="Search">
-            🔍 Search
+            <span className="day-panel-btn-icon day-panel-btn-icon--search" aria-hidden="true" />
+            Search
           </button>
           {onOpenDayCanvas && (
             <button className="day-panel-canvas-btn" onClick={() => onOpenDayCanvas(selectedDay)} type="button" title="Open Day Canvas">
-              🖼 Canvas
+              <span className="day-panel-btn-icon day-panel-btn-icon--canvas" aria-hidden="true" />
+              Canvas
             </button>
           )}
           <button className="day-panel-add-btn" onClick={() => onAddNew(selectedDay)} type="button">

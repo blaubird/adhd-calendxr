@@ -19,12 +19,16 @@ export default function MainShell({
   initialItems,
   initialMonth,
   userEmail,
+  onSignOut,
 }: {
   initialItems: Item[];
   initialMonth: string;
   userEmail: string;
+  onSignOut: () => Promise<void>;
 }) {
   const [activeTab, setActiveTab] = useState<ActiveTab>('calendar');
+  const accountLabel = userEmail?.split('@')[0] || 'Account';
+  const accountInitial = accountLabel.charAt(0).toUpperCase() || 'A';
 
   // Shared state from Calendar → Canvas
   const [calendarDay, setCalendarDay] = useState(format(new Date(), 'yyyy-MM-dd'));
@@ -37,40 +41,53 @@ export default function MainShell({
   }, []);
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-[var(--bg-root)] animate-fade-in">
-      <header className="flex min-h-[38px] items-center gap-5 px-5 py-1.5 border-b border-[var(--border-subtle)] bg-[var(--bg-surface)] shrink-0 z-50 shadow-soft">
-        <div className="text-xs font-bold text-white tracking-widest mr-2 select-none flex items-center gap-2">
-          <span className="w-3.5 h-3.5 rounded-full bg-sky-500 shadow-[0_0_10px_rgba(56,189,248,0.6)]" />
-          CALENDXR
+    <div className="app-shell">
+      <header className="app-topbar">
+        <div className="app-brand">
+          <span className="app-brand-mark" aria-hidden="true" />
+          <span>CALENDXR</span>
         </div>
-        <nav className="flex items-center gap-4">
+        <nav className="app-tabs" aria-label="Primary">
           <button 
             onClick={() => setActiveTab('calendar')}
-            className={`text-xs transition-all duration-200 uppercase tracking-wider ${activeTab === 'calendar' ? 'text-sky-400 font-semibold drop-shadow-[0_0_8px_rgba(56,189,248,0.4)]' : 'text-slate-500 hover:text-slate-300'}`}
+            className={`app-tab ${activeTab === 'calendar' ? 'app-tab--active' : ''}`}
           >
             Calendar
           </button>
           <button 
             onClick={() => setActiveTab('canvas')}
-            className={`text-xs transition-all duration-200 uppercase tracking-wider ${activeTab === 'canvas' ? 'text-sky-400 font-semibold drop-shadow-[0_0_8px_rgba(56,189,248,0.4)]' : 'text-slate-500 hover:text-slate-300'}`}
+            className={`app-tab ${activeTab === 'canvas' ? 'app-tab--active' : ''}`}
           >
             Canvas
           </button>
           <button 
             onClick={() => setActiveTab('gambling')}
-            className={`text-xs transition-all duration-200 uppercase tracking-wider ${activeTab === 'gambling' ? 'text-sky-400 font-semibold drop-shadow-[0_0_8px_rgba(56,189,248,0.4)]' : 'text-slate-500 hover:text-slate-300'}`}
+            className={`app-tab ${activeTab === 'gambling' ? 'app-tab--active' : ''}`}
           >
             Gambling
           </button>
         </nav>
+        <div className="app-topbar-actions">
+          <button className="app-icon-btn app-icon-btn--search" type="button" aria-label="Search" onClick={() => setActiveTab('calendar')} />
+          <button className="app-icon-btn app-icon-btn--settings" type="button" aria-label="Settings" />
+          <button className="app-icon-btn app-icon-btn--notifications" type="button" aria-label="Notifications">
+            <span className="app-notification-dot" />
+          </button>
+          <div className="app-user-chip" title={userEmail}>
+            <span className="app-user-avatar">{accountInitial}</span>
+            <span className="app-user-name">{accountLabel}</span>
+            <span className="app-user-chevron" aria-hidden="true" />
+          </div>
+        </div>
       </header>
       
-      <div className="flex-1 min-h-0 overflow-auto relative">
+      <div className="app-content">
         {activeTab === 'calendar' && (
           <CalendarShell 
             initialItems={initialItems} 
             initialMonth={initialMonth} 
             userEmail={userEmail}
+            onSignOut={onSignOut}
             onSelectedDayChange={setCalendarDay}
             onMonthChange={setCalendarMonth}
             onOpenDayCanvas={openDayCanvas}

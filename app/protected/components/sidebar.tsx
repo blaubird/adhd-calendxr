@@ -145,6 +145,7 @@ export function Sidebar({
   onNext,
   onToday,
   userEmail,
+  onSignOut,
   items,
   onPickNextUp,
 }: {
@@ -154,12 +155,11 @@ export function Sidebar({
   onNext: () => void;
   onToday: () => void;
   userEmail: string;
+  onSignOut: () => Promise<void>;
   items: Item[];
   onPickNextUp?: (item: Item) => void;
 }) {
   const monthName = MONTH_NAMES[month - 1] ?? '';
-  // userEmail is kept in props for compatibility but no longer rendered
-  void userEmail;
 
   return (
     <aside className="sidebar">
@@ -187,7 +187,7 @@ export function Sidebar({
             </button>
           </div>
           <button className="sidebar-today-btn" onClick={onToday}>
-            Today <span className="sidebar-today-icon">📅</span>
+            Today <span className="sidebar-today-icon" aria-hidden="true" />
           </button>
         </div>
       </div>
@@ -212,8 +212,17 @@ export function Sidebar({
       {/* Next Up Card */}
       <SidebarNextUp items={items} onPick={onPickNextUp} />
 
-      {/* Spacer for flex layout — no footer/email */}
+      {/* Spacer for flex layout */}
       <div className="sidebar-placeholder" />
+
+      <div className="sidebar-card sidebar-footer">
+        <span className="sidebar-email">{userEmail}</span>
+        <form action={onSignOut}>
+          <button className="sidebar-logout-btn" type="submit" aria-label="Sign out">
+            <span aria-hidden="true" />
+          </button>
+        </form>
+      </div>
     </aside>
   );
 }

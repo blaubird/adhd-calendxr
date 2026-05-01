@@ -12,7 +12,6 @@ const DONE_COLOR = '#555';
 const MAX_VISIBLE_DOTS = 8;
 
 function getItemDotColor(item: Item): string {
-  // Done items are always grey
   const isDone = item.status === 'done';
   if (isDone) return DONE_COLOR;
 
@@ -61,6 +60,8 @@ function DayCell({
       role="button"
       tabIndex={0}
     >
+      {/* Inner glass background layer — clips to border-radius, sits behind dots */}
+      <div className="month-cell-bg" />
       <span className={`month-cell-number ${isToday ? 'month-cell-number--today' : ''}`}>
         {dayNum}
       </span>
@@ -74,11 +75,14 @@ function DayCell({
                 key={String(item.id)}
                 className={`month-dot ${isDone ? 'month-dot--done' : ''}`}
                 style={{
-                  backgroundColor: color,
+                  '--dot-color': color,
+                  background: isDone
+                    ? color
+                    : `radial-gradient(circle at 35% 30%, rgba(255,255,255,0.65), ${color} 42%, color-mix(in srgb, ${color} 60%, #001018) 100%)`,
                   boxShadow: isDone
-                    ? '0 1px 2px rgba(0,0,0,0.4)'
-                    : `0 0 6px ${color}88, 0 0 12px ${color}44, 0 1px 3px rgba(0,0,0,0.5)`,
-                }}
+                    ? '0 1px 3px rgba(0,0,0,0.5)'
+                    : `0 0 7px color-mix(in srgb, ${color} 60%, transparent), 0 0 16px color-mix(in srgb, ${color} 28%, transparent)`,
+                } as React.CSSProperties}
                 title={dotLabel(item)}
                 aria-label={`Open ${dotLabel(item)}`}
                 onClick={(event) => {

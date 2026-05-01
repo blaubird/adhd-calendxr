@@ -12,6 +12,11 @@ export default async function ProtectedPage() {
     redirect('/login');
   }
 
+  async function signOutAction() {
+    'use server';
+    await signOut({ redirectTo: '/login' });
+  }
+
   // Compute current month range in Paris timezone
   const now = nowInTz(new Date());
   const monthStart = startOfMonth(now);
@@ -30,6 +35,7 @@ export default async function ProtectedPage() {
         initialItems={items as Item[]}
         initialMonth={monthKey}
         userEmail={session?.user?.email ?? ''}
+        onSignOut={signOutAction}
       />
     </div>
   );
