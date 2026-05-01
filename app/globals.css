@@ -51,12 +51,13 @@
   --font-lg: 16px;
   --font-xl: 20px;
 
-  --app-topbar-height: 64px;
-  --sidebar-width: 252px;
-  --day-panel-width: 348px;
-  --calendar-center-max: 1000px;
-  --calendar-shell-gap: 14px;
-  --calendar-shell-padding: 12px;
+  --app-topbar-height: clamp(52px, 6.2dvh, 64px);
+  --sidebar-width: clamp(210px, 16vw, 290px);
+  --day-panel-width: clamp(300px, 22vw, 420px);
+  --calendar-shell-gap: clamp(8px, 0.9vw, 16px);
+  --calendar-shell-padding: clamp(8px, 0.9vw, 16px);
+  --calendar-cell-min: 42;
+  --calendar-cell-max: clamp(118px, 8.3vw, 172px);
   --calendar-min-width: 0;
   --calendar-min-height: 0;
 }
@@ -173,8 +174,8 @@ textarea {
 .app-shell {
   height: 100vh;
   height: 100dvh;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: var(--app-topbar-height) minmax(0, 1fr);
   overflow: hidden;
   background:
     radial-gradient(circle at 48% 8%, rgba(20, 45, 78, 0.18), transparent 34%),
@@ -183,11 +184,12 @@ textarea {
 }
 
 .app-topbar {
-  min-height: var(--app-topbar-height);
+  min-height: 0;
+  height: var(--app-topbar-height);
   display: flex;
   align-items: center;
-  gap: 26px;
-  padding: 0 22px;
+  gap: clamp(18px, 1.7vw, 28px);
+  padding: 0 clamp(16px, 1.35vw, 24px);
   border-bottom: 1px solid rgba(100, 160, 240, 0.1);
   background: rgba(5, 9, 16, 0.76);
   backdrop-filter: var(--glass-blur);
@@ -198,17 +200,17 @@ textarea {
 .app-brand {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: clamp(9px, 0.8vw, 12px);
   color: var(--text-primary);
-  font-size: 21px;
+  font-size: clamp(18px, 1.25vw, 21px);
   font-weight: 800;
   letter-spacing: 0.02em;
   white-space: nowrap;
 }
 
 .app-brand-mark {
-  width: 30px;
-  height: 30px;
+  width: clamp(26px, 1.9vw, 31px);
+  height: clamp(26px, 1.9vw, 31px);
   border-radius: 999px;
   position: relative;
   background: linear-gradient(135deg, #0066d8, #22d3ee);
@@ -230,7 +232,7 @@ textarea {
 .app-tabs {
   display: flex;
   align-items: stretch;
-  gap: 26px;
+  gap: clamp(18px, 1.55vw, 28px);
   height: 100%;
 }
 
@@ -239,7 +241,7 @@ textarea {
   border: 0;
   background: transparent;
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: clamp(12px, 0.86vw, 14px);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.01em;
@@ -274,13 +276,13 @@ textarea {
   margin-left: auto;
   display: flex;
   align-items: center;
-  gap: 17px;
+  gap: clamp(12px, 1vw, 18px);
   min-width: 0;
 }
 
 .app-icon-btn {
-  width: 26px;
-  height: 26px;
+  width: clamp(22px, 1.55vw, 27px);
+  height: clamp(22px, 1.55vw, 27px);
   position: relative;
   border: 0;
   background: transparent;
@@ -365,8 +367,8 @@ textarea {
 }
 
 .app-user-avatar {
-  width: 34px;
-  height: 34px;
+  width: clamp(30px, 2vw, 35px);
+  height: clamp(30px, 2vw, 35px);
   display: grid;
   place-items: center;
   border-radius: 999px;
@@ -393,9 +395,9 @@ textarea {
 }
 
 .app-content {
-  flex: 1;
   min-height: 0;
-  overflow: auto;
+  min-width: 0;
+  overflow: hidden;
   position: relative;
 }
 
@@ -417,6 +419,7 @@ textarea {
   display: grid;
   grid-template-columns: var(--sidebar-width) minmax(0, 1fr) var(--day-panel-width);
   height: 100%;
+  max-height: 100%;
   min-width: var(--calendar-min-width);
   min-height: var(--calendar-min-height);
   overflow: hidden;
@@ -578,10 +581,6 @@ textarea {
 
 .sidebar-clock-section {
   padding: 0;
-}
-
-.sidebar-placeholder {
-  flex: 1;
 }
 
 .sidebar-footer {
@@ -869,18 +868,22 @@ textarea {
   overflow: hidden;
   background: var(--bg-root);
   min-height: 0;
+  min-width: 0;
 }
 
 .month-grid-wrapper {
+  --month-grid-gap: clamp(3px, 0.42vw, 6px);
+  --month-header-gap: clamp(4px, 0.55dvh, 7px);
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   min-height: 0;
-  width: min(100%, var(--calendar-center-max));
+  min-width: 0;
+  width: 100%;
   height: 100%;
-  padding: clamp(14px, 2dvh, 22px) clamp(16px, 2.4dvw, 30px) clamp(16px, 2.4dvh, 26px);
+  padding: clamp(10px, 1.3dvh, 18px) clamp(10px, 1.15vw, 20px);
   border: 1px solid rgba(120, 180, 255, 0.14);
   border-radius: var(--radius-lg);
   background:
@@ -891,23 +894,26 @@ textarea {
 }
 
 .month-grid-stage {
-  width: min(
-    100%,
-    var(--calendar-center-max),
-    calc(100dvh - var(--app-topbar-height) - var(--calendar-shell-padding) - var(--calendar-shell-padding) - 54px)
-  );
-  max-height: 100%;
-  display: flex;
-  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  max-width: calc((var(--calendar-cell-size) * 7) + (var(--month-grid-gap) * 6));
+  max-height: calc((var(--calendar-cell-size) * 6) + (var(--month-grid-gap) * 5) + 24px + var(--month-header-gap));
+  display: grid;
+  grid-template-rows: auto 1fr;
+  align-content: center;
+  justify-content: center;
+  gap: var(--month-header-gap);
   min-height: 0;
+  min-width: 0;
 }
 
 .month-weekday-headers {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 5px;
-  margin-bottom: 5px;
+  grid-template-columns: repeat(7, var(--calendar-cell-size));
+  gap: var(--month-grid-gap);
+  margin-bottom: 0;
   flex: 0 0 auto;
+  justify-content: center;
 }
 
 .month-weekday-header {
@@ -922,14 +928,15 @@ textarea {
 
 .month-grid {
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  grid-auto-rows: minmax(0, 1fr);
+  grid-template-columns: repeat(7, var(--calendar-cell-size));
+  grid-template-rows: repeat(6, var(--calendar-cell-size));
   align-content: start;
-  gap: 5px;
-  width: 100%;
-  aspect-ratio: var(--month-grid-ratio);
-  flex: 0 1 auto;
+  justify-content: center;
+  gap: var(--month-grid-gap);
+  width: calc((var(--calendar-cell-size) * 7) + (var(--month-grid-gap) * 6));
+  height: calc((var(--calendar-cell-size) * 6) + (var(--month-grid-gap) * 5));
   min-height: 0;
+  min-width: 0;
 }
 
 .month-cell {
@@ -939,6 +946,9 @@ textarea {
   align-items: flex-start;
   gap: 3px;
   padding: clamp(5px, 0.75dvh, 8px) clamp(6px, 0.7dvw, 9px);
+  width: var(--calendar-cell-size);
+  height: var(--calendar-cell-size);
+  aspect-ratio: 1 / 1;
   min-height: 0;
   border-radius: var(--radius-md);
   border: 1px solid var(--glass-border);
@@ -2184,11 +2194,11 @@ textarea {
 
 @media (max-width: 1100px) {
   :root {
-    --sidebar-width: 220px;
-    --day-panel-width: 300px;
-    --calendar-center-max: 820px;
+    --sidebar-width: clamp(190px, 19vw, 220px);
+    --day-panel-width: clamp(270px, 28vw, 310px);
     --calendar-shell-gap: 10px;
     --calendar-shell-padding: 8px;
+    --calendar-cell-max: 132px;
     --calendar-min-width: 0;
   }
 }
@@ -2198,6 +2208,7 @@ textarea {
     --app-topbar-height: 58px;
     --calendar-shell-padding: 8px;
     --calendar-shell-gap: 10px;
+    --calendar-cell-max: 118px;
     --calendar-min-height: 0;
   }
 
@@ -2254,16 +2265,13 @@ textarea {
   }
 
   .month-grid-wrapper {
+    --month-grid-gap: 4px;
+    --month-header-gap: 4px;
     padding: 12px 16px 14px;
   }
 
   .month-weekday-header {
     padding-bottom: 3px;
-  }
-
-  .month-grid,
-  .month-weekday-headers {
-    gap: 4px;
   }
 
   .month-cell {

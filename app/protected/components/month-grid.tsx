@@ -1,11 +1,14 @@
 'use client';
 
-import React from 'react';
+import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Item } from 'app/types';
 import { formatDayKey, formatTimeValue, nowInTz } from 'app/lib/datetime';
 import { DEFAULT_ITEM_COLOR, RECURRING_ITEM_COLOR } from 'app/lib/item-colors';
 
 const WEEKDAY_HEADERS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+const GRID_COLUMNS = 7;
+const GRID_ROWS = 6;
+const DEFAULT_CELL_SIZE = 96;
 
 /** Default colors for dots */
 const DONE_COLOR = '#555';
@@ -127,16 +130,67 @@ export function MonthGrid({
   onPickItem: (item: Item) => void;
 }) {
   const todayStr = formatDayKey(nowInTz(new Date()));
-  const rowCount = Math.ceil((firstDayWeekday + daysInMonth) / 7);
+  const stageRef = useRef<HTMLDivElement | null>(null);
+  const headerRef = useRef<HTMLDivElement | null>(null);
+  const [cellSize, setCellSize] = useState(DEFAULT_CELL_SIZE);
+  const trailingEmptyCount = Math.max(0, (GRID_COLUMNS * GRID_ROWS) - firstDayWeekday - daysInMonth);
+
+  useLayoutEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+
+    let frame = 0;
+    const updateCellSize = () => {
+      const styles = window.getComputedStyle(stage);
+      const gap = Number.parseFloat(styles.getPropertyValue('--month-grid-gap')) || 5;
+      const headerGap = Number.parseFloat(styles.getPropertyValue('--month-header-gap')) || gap;
+      const maxCell = Number.parseFloat(styles.getPropertyValue('--calendar-cell-max')) || 170;
+      const minCell = Number.parseFloat(styles.getPropertyValue('--calendar-cell-min')) || 44;
+      const { width, height } = stage.getBoundingClientRect();
+      const paddingX = (Number.parseFloat(styles.paddingLeft) || 0) + (Number.parseFloat(styles.paddingRight) || 0);
+      const paddingY = (Number.parseFloat(styles.paddingTop) || 0) + (Number.parseFloat(styles.paddingBottom) || 0);
+      const headerHeight = headerRef.current?.getBoundingClientRect().height ?? 0;
+      const availableWidth = width - paddingX - gap * (GRID_COLUMNS - 1);
+      const availableHeight = height - paddingY - headerHeight - headerGap - gap * (GRID_ROWS - 1);
+      const next = Math.floor(Math.min(
+        availableWidth / GRID_COLUMNS,
+        availableHeight / GRID_ROWS,
+        maxCell
+      ));
+      const bounded = Math.max(minCell, Number.isFinite(next) ? next : DEFAULT_CELL_SIZE);
+      setCellSize((current) => Math.abs(current - bounded) > 1 ? bounded : current);
+    };
+
+    const scheduleUpdate = () => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(updateCellSize);
+    };
+
+    const observer = new ResizeObserver(scheduleUpdate);
+    observer.observe(stage);
+    if (headerRef.current) observer.observe(headerRef.current);
+    updateCellSize();
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, []);
+
+  const gridStyle = useMemo(
+    () => ({ '--calendar-cell-size': `${cellSize}px` }) as React.CSSProperties,
+    [cellSize]
+  );
 
   return (
     <div
       className="month-grid-wrapper animate-fade-in"
-      style={{ '--month-grid-ratio': `7 / ${rowCount}` } as React.CSSProperties}
+      ref={stageRef}
+      style={gridStyle}
     >
       <div className="month-grid-stage">
         {/* Weekday headers */}
-        <div className="month-weekday-headers">
+        <div className="month-weekday-headers" ref={headerRef}>
           {WEEKDAY_HEADERS.map((d) => (
             <div key={d} className="month-weekday-header">{d}</div>
           ))}
@@ -166,6 +220,10 @@ export function MonthGrid({
               />
             );
           })}
+
+          {Array.from({ length: trailingEmptyCount }).map((_, i) => (
+            <div key={`trailing-empty-${i}`} className="month-cell month-cell--empty" />
+          ))}
         </div>
       </div>
     </div>

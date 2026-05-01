@@ -144,8 +144,6 @@ export function Sidebar({
   onPrev,
   onNext,
   onToday,
-  userEmail,
-  onSignOut,
   items,
   onPickNextUp,
 }: {
@@ -211,18 +209,6 @@ export function Sidebar({
 
       {/* Next Up Card */}
       <SidebarNextUp items={items} onPick={onPickNextUp} />
-
-      {/* Spacer for flex layout */}
-      <div className="sidebar-placeholder" />
-
-      <div className="sidebar-card sidebar-footer">
-        <span className="sidebar-email">{userEmail}</span>
-        <form action={onSignOut}>
-          <button className="sidebar-logout-btn" type="submit" aria-label="Sign out">
-            <span aria-hidden="true" />
-          </button>
-        </form>
-      </div>
     </aside>
   );
 }
