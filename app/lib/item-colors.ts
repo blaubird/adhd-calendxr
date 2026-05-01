@@ -8,6 +8,6 @@ export const ITEM_COLOR_PALETTE = [
   '#00ff00',
   '#5500ff',
   '#00eeff',
-  '#00eb66',
+  '#4a991c',
   '#ff0a91',
 ] as const;
