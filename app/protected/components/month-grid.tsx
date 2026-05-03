@@ -8,7 +8,7 @@ import { DEFAULT_ITEM_COLOR, RECURRING_ITEM_COLOR } from 'app/lib/item-colors';
 const WEEKDAY_HEADERS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
 const GRID_COLUMNS = 7;
 const GRID_ROWS = 6;
-const DEFAULT_CELL_SIZE = 96;
+const DEFAULT_CELL_SIZE = 120;
 
 /** Default colors for dots */
 const DONE_COLOR = '#555';
@@ -130,28 +130,53 @@ export function MonthGrid({
   onPickItem: (item: Item) => void;
 }) {
   const todayStr = formatDayKey(nowInTz(new Date()));
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const headerRef = useRef<HTMLDivElement | null>(null);
+  const gridRef = useRef<HTMLDivElement | null>(null);
   const [cellSize, setCellSize] = useState(DEFAULT_CELL_SIZE);
   const trailingEmptyCount = Math.max(0, (GRID_COLUMNS * GRID_ROWS) - firstDayWeekday - daysInMonth);
 
   useLayoutEffect(() => {
-    const stage = stageRef.current;
-    if (!stage) return;
+    const wrapper = wrapperRef.current;
+    if (!wrapper) return;
+
+    const readPx = (...values: Array<string | number | undefined>) => {
+      for (const value of values) {
+        const parsed = typeof value === 'number' ? value : Number.parseFloat(value ?? '');
+        if (Number.isFinite(parsed)) return parsed;
+      }
+      return 0;
+    };
 
     let frame = 0;
     const updateCellSize = () => {
-      const styles = window.getComputedStyle(stage);
-      const gap = Number.parseFloat(styles.getPropertyValue('--month-grid-gap')) || 5;
-      const headerGap = Number.parseFloat(styles.getPropertyValue('--month-header-gap')) || gap;
-      const maxCell = Number.parseFloat(styles.getPropertyValue('--calendar-cell-max')) || 220;
-      const minCell = Number.parseFloat(styles.getPropertyValue('--calendar-cell-min')) || 44;
-      const { width, height } = stage.getBoundingClientRect();
-      const paddingX = (Number.parseFloat(styles.paddingLeft) || 0) + (Number.parseFloat(styles.paddingRight) || 0);
-      const paddingY = (Number.parseFloat(styles.paddingTop) || 0) + (Number.parseFloat(styles.paddingBottom) || 0);
+      const wrapperStyles = window.getComputedStyle(wrapper);
+      const stageStyles = stageRef.current ? window.getComputedStyle(stageRef.current) : null;
+      const gridStyles = gridRef.current ? window.getComputedStyle(gridRef.current) : null;
+      const columnGap = readPx(
+        gridStyles?.columnGap,
+        wrapperStyles.getPropertyValue('--month-grid-gap'),
+        7
+      );
+      const rowGap = readPx(
+        gridStyles?.rowGap,
+        wrapperStyles.getPropertyValue('--month-grid-gap'),
+        columnGap
+      );
+      const headerGap = readPx(
+        stageStyles?.rowGap,
+        wrapperStyles.getPropertyValue('--month-header-gap'),
+        rowGap
+      );
+      const maxCell = Number.parseFloat(wrapperStyles.getPropertyValue('--calendar-cell-max')) || 260;
+      const minCell = Number.parseFloat(wrapperStyles.getPropertyValue('--calendar-cell-min')) || 44;
+      const { width, height } = wrapper.getBoundingClientRect();
+      const paddingX = (Number.parseFloat(wrapperStyles.paddingLeft) || 0) + (Number.parseFloat(wrapperStyles.paddingRight) || 0);
+      const paddingY = (Number.parseFloat(wrapperStyles.paddingTop) || 0) + (Number.parseFloat(wrapperStyles.paddingBottom) || 0);
       const headerHeight = headerRef.current?.getBoundingClientRect().height ?? 0;
-      const availableWidth = width - paddingX - gap * (GRID_COLUMNS - 1);
-      const availableHeight = height - paddingY - headerHeight - headerGap - gap * (GRID_ROWS - 1);
+      const availableWidth = width - paddingX - columnGap * (GRID_COLUMNS - 1);
+      const availableHeight = height - paddingY - headerHeight - headerGap - rowGap * (GRID_ROWS - 1);
       const next = Math.floor(Math.min(
         availableWidth / GRID_COLUMNS,
         availableHeight / GRID_ROWS,
@@ -167,8 +192,10 @@ export function MonthGrid({
     };
 
     const observer = new ResizeObserver(scheduleUpdate);
-    observer.observe(stage);
+    observer.observe(wrapper);
+    if (stageRef.current) observer.observe(stageRef.current);
     if (headerRef.current) observer.observe(headerRef.current);
+    if (gridRef.current) observer.observe(gridRef.current);
     updateCellSize();
 
     return () => {
@@ -185,10 +212,10 @@ export function MonthGrid({
   return (
     <div
       className="month-grid-wrapper animate-fade-in"
-      ref={stageRef}
+      ref={wrapperRef}
       style={gridStyle}
     >
-      <div className="month-grid-stage">
+      <div className="month-grid-stage" ref={stageRef}>
         {/* Weekday headers */}
         <div className="month-weekday-headers" ref={headerRef}>
           {WEEKDAY_HEADERS.map((d) => (
@@ -197,7 +224,7 @@ export function MonthGrid({
         </div>
 
         {/* Day cells grid */}
-        <div className="month-grid">
+        <div className="month-grid" ref={gridRef}>
           {/* Empty cells before the 1st */}
           {Array.from({ length: firstDayWeekday }).map((_, i) => (
             <div key={`empty-${i}`} className="month-cell month-cell--empty" />
