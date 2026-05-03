@@ -144,7 +144,7 @@ export function MonthGrid({
       const styles = window.getComputedStyle(stage);
       const gap = Number.parseFloat(styles.getPropertyValue('--month-grid-gap')) || 5;
       const headerGap = Number.parseFloat(styles.getPropertyValue('--month-header-gap')) || gap;
-      const maxCell = Number.parseFloat(styles.getPropertyValue('--calendar-cell-max')) || 170;
+      const maxCell = Number.parseFloat(styles.getPropertyValue('--calendar-cell-max')) || 220;
       const minCell = Number.parseFloat(styles.getPropertyValue('--calendar-cell-min')) || 44;
       const { width, height } = stage.getBoundingClientRect();
       const paddingX = (Number.parseFloat(styles.paddingLeft) || 0) + (Number.parseFloat(styles.paddingRight) || 0);
