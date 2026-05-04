@@ -887,8 +887,8 @@ textarea {
 }
 
 .month-grid-wrapper {
-  --month-grid-gap: clamp(7px, 0.58vw, 12px);
-  --month-header-gap: clamp(5px, 0.58dvh, 8px);
+  --month-grid-gap: clamp(6px, 0.56vw, 11px);
+  --month-header-gap: clamp(4px, 0.45dvh, 7px);
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -898,7 +898,7 @@ textarea {
   min-width: 0;
   width: 100%;
   height: 100%;
-  padding: clamp(4px, 0.45dvh, 8px) clamp(5px, 0.52vw, 10px);
+  padding: clamp(3px, 0.34dvh, 6px) clamp(3px, 0.34vw, 7px);
   border: 1px solid rgba(150, 190, 230, 0.12);
   border-radius: var(--radius-lg);
   background:
@@ -929,22 +929,25 @@ textarea {
   width: 100%;
   height: 100%;
   display: grid;
-  grid-template-rows: max-content max-content;
-  align-content: center;
-  justify-items: center;
+  grid-template-rows: max-content minmax(0, 1fr);
+  align-content: stretch;
+  justify-items: stretch;
   gap: var(--month-header-gap);
   min-height: 0;
   min-width: 0;
+  position: relative;
+  z-index: 1;
 }
 
 .month-weekday-headers {
   display: grid;
-  grid-template-columns: repeat(7, var(--calendar-cell-size));
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: var(--month-grid-gap);
-  width: calc((var(--calendar-cell-size) * 7) + (var(--month-grid-gap) * 6));
+  width: 100%;
   margin-bottom: 0;
   flex: 0 0 auto;
-  justify-content: center;
+  justify-content: stretch;
+  min-width: 0;
 }
 
 .month-weekday-header {
@@ -959,13 +962,13 @@ textarea {
 
 .month-grid {
   display: grid;
-  grid-template-columns: repeat(7, var(--calendar-cell-size));
-  grid-template-rows: repeat(6, var(--calendar-cell-size));
-  align-content: start;
-  justify-content: center;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-rows: repeat(6, minmax(0, 1fr));
+  align-content: stretch;
+  justify-content: stretch;
   gap: var(--month-grid-gap);
-  width: calc((var(--calendar-cell-size) * 7) + (var(--month-grid-gap) * 6));
-  height: calc((var(--calendar-cell-size) * 6) + (var(--month-grid-gap) * 5));
+  width: 100%;
+  height: 100%;
   min-height: 0;
   min-width: 0;
 }
@@ -979,7 +982,6 @@ textarea {
   padding: clamp(7px, calc(var(--calendar-cell-size) * 0.07), 13px);
   width: 100%;
   height: 100%;
-  aspect-ratio: 1 / 1;
   min-height: 0;
   border-radius: var(--radius-md);
   border: 1px solid rgba(150, 190, 230, 0.115);
@@ -996,15 +998,29 @@ textarea {
   inset: 0;
   border-radius: inherit;
   background:
-    linear-gradient(145deg, rgba(9, 16, 29, 0.76), rgba(0, 3, 7, 0.62));
-  backdrop-filter: blur(16px) saturate(112%);
+    linear-gradient(145deg, rgba(12, 22, 38, 0.52), rgba(0, 3, 8, 0.34));
+  backdrop-filter: blur(24px) saturate(126%);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.045),
-    inset 0 -1px 0 rgba(90, 170, 255, 0.035),
-    0 10px 26px rgba(0, 0, 0, 0.18);
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    inset 0 -1px 0 rgba(90, 170, 255, 0.055),
+    inset 1px 0 0 rgba(255, 255, 255, 0.018),
+    0 12px 28px rgba(0, 0, 0, 0.16);
   z-index: -1;
   transition: background 0.18s ease-out;
   pointer-events: none;
+}
+
+.month-cell::after {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  border-radius: calc(var(--radius-md) - 1px);
+  pointer-events: none;
+  background:
+    linear-gradient(115deg, rgba(255, 255, 255, 0.065), transparent 26%),
+    linear-gradient(180deg, rgba(160, 215, 255, 0.035), transparent 48%);
+  opacity: 0.78;
+  z-index: 0;
 }
 
 .month-cell:hover {
@@ -1017,7 +1033,7 @@ textarea {
 
 .month-cell:hover .month-cell-bg {
   background:
-    linear-gradient(145deg, rgba(12, 22, 38, 0.82), rgba(0, 4, 10, 0.68));
+    linear-gradient(145deg, rgba(15, 28, 47, 0.58), rgba(0, 5, 12, 0.4));
 }
 
 .month-cell:focus-visible {
@@ -1037,6 +1053,10 @@ textarea {
   display: none;
 }
 
+.month-cell--empty::after {
+  display: none;
+}
+
 .month-cell--empty:hover {
   background: transparent;
   border-color: transparent;
@@ -1053,7 +1073,7 @@ textarea {
 
 .month-cell--today .month-cell-bg {
   background:
-    linear-gradient(145deg, rgba(11, 23, 38, 0.82), rgba(0, 6, 12, 0.7));
+    linear-gradient(145deg, rgba(14, 30, 50, 0.56), rgba(0, 7, 15, 0.42));
 }
 
 .month-cell--selected {
@@ -1066,7 +1086,7 @@ textarea {
 
 .month-cell--selected .month-cell-bg {
   background:
-    linear-gradient(145deg, rgba(14, 29, 48, 0.86), rgba(0, 6, 14, 0.74));
+    linear-gradient(145deg, rgba(16, 36, 58, 0.64), rgba(0, 8, 18, 0.48));
 }
 
 .month-cell-number {
