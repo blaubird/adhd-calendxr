@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import { auth } from 'app/auth';
 import { getOrCreateBoard, listElements } from 'app/lib/canvas/db';
+import { getCurrentUserId } from 'app/lib/auth/current-user';
 import { getBoardSchema } from 'app/lib/canvas/validation';
 
 export async function GET(request: Request) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getCurrentUserId();
+  if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -21,7 +21,6 @@ export async function GET(request: Request) {
     );
   }
 
-  const userId = Number(session.user.id);
   const board = await getOrCreateBoard(userId, parsed.data.scope, parsed.data.scopeKey);
 
   if (!board) {

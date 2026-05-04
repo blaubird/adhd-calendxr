@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import { auth } from 'app/auth';
 import { searchItemsByTitle } from 'app/db';
+import { getCurrentUserId } from 'app/lib/auth/current-user';
 import { normalizeItemList } from 'app/lib/items';
 
 export async function GET(request: Request) {
-  const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const userId = await getCurrentUserId();
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { searchParams } = new URL(request.url);
   const query = (searchParams.get('q') ?? '').trim();
@@ -16,6 +16,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Query is too long' }, { status: 400 });
   }
 
-  const records = await searchItemsByTitle(Number(session.user.id), query, limitParam);
+  const records = await searchItemsByTitle(userId, query, limitParam);
   return NextResponse.json({ items: normalizeItemList(records) });
 }

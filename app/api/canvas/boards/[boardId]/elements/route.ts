@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { auth } from 'app/auth';
 import {
   createElement,
   updateElement,
@@ -8,6 +7,7 @@ import {
   listElements,
   verifyBoardOwnership,
 } from 'app/lib/canvas/db';
+import { getCurrentUserId } from 'app/lib/auth/current-user';
 import {
   createElementSchema,
   updateElementSchema,
@@ -19,8 +19,8 @@ export async function POST(
   request: Request,
   { params }: { params: { boardId: string } }
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getCurrentUserId();
+  if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -29,7 +29,6 @@ export async function POST(
     return NextResponse.json({ error: 'Invalid boardId' }, { status: 400 });
   }
 
-  const userId = Number(session.user.id);
   const owns = await verifyBoardOwnership(boardId, userId);
   if (!owns) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
@@ -64,8 +63,8 @@ export async function PATCH(
   request: Request,
   { params }: { params: { boardId: string } }
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getCurrentUserId();
+  if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -74,7 +73,6 @@ export async function PATCH(
     return NextResponse.json({ error: 'Invalid boardId' }, { status: 400 });
   }
 
-  const userId = Number(session.user.id);
   const owns = await verifyBoardOwnership(boardId, userId);
   if (!owns) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
@@ -107,8 +105,8 @@ export async function DELETE(
   request: Request,
   { params }: { params: { boardId: string } }
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getCurrentUserId();
+  if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -117,7 +115,6 @@ export async function DELETE(
     return NextResponse.json({ error: 'Invalid boardId' }, { status: 400 });
   }
 
-  const userId = Number(session.user.id);
   const owns = await verifyBoardOwnership(boardId, userId);
   if (!owns) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });

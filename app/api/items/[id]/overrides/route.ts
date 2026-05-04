@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { auth } from 'app/auth';
 import { addExdate, createOverride, getItemById } from 'app/db';
+import { getCurrentUserId } from 'app/lib/auth/current-user';
 import { normalizeItemRecord } from 'app/lib/items';
 import { overrideInputSchema } from 'app/lib/validation';
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
-  const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const userId = await getCurrentUserId();
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const json = await request.json();
   const result = overrideInputSchema.safeParse(json);
@@ -14,14 +14,14 @@ export async function POST(request: Request, { params }: { params: { id: string 
     return NextResponse.json({ error: 'Invalid payload', details: result.error.flatten() }, { status: 400 });
   }
 
-  const master = await getItemById(Number(session.user.id), Number(params.id));
+  const master = await getItemById(userId, Number(params.id));
   if (!master || !master.recurrenceRule || master.parentId) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
-  await addExdate(Number(session.user.id), Number(params.id), result.data.occurrenceDay);
+  await addExdate(userId, Number(params.id), result.data.occurrenceDay);
   const [override] = await createOverride(
-    Number(session.user.id),
+    userId,
     Number(params.id),
     result.data.occurrenceDay,
     { ...result.data, day: result.data.occurrenceDay }

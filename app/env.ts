@@ -19,6 +19,7 @@ const schema = z.object({
   TELEGRAM_DIGEST_HOUR: z.coerce.number().int().min(0).max(23).optional(),
   APP_BASE_URL: z.string().url().optional(),
   CRON_SECRET: z.string().optional(),
+  CALENDXR_DEV_AUTH_BYPASS: z.enum(['1']).optional(),
 });
 
 export const env = schema.parse(process.env);

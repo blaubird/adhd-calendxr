@@ -1,10 +1,10 @@
 import { redirect } from 'next/navigation';
 
-import { auth } from './auth';
+import { getCurrentUser } from './lib/auth/current-user';
 
 export default async function Page() {
-  const session = await auth();
-  if (session?.user) {
+  const user = await getCurrentUser();
+  if (user) {
     redirect('/protected');
   }
   redirect('/login');

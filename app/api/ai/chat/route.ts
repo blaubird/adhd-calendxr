@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-import { auth } from 'app/auth';
+import { getCurrentUser } from 'app/lib/auth/current-user';
 import {
   chatRequestSchema,
   chatResultSchema,
@@ -70,8 +70,8 @@ function normalizeResult(payload: unknown) {
 }
 
 export async function POST(request: Request) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const user = await getCurrentUser();
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -89,7 +89,8 @@ export async function POST(request: Request) {
 
   if (env.NODE_ENV !== 'production') {
     console.debug('[ai/chat] request', {
-      user: session.user.id,
+      user: user.id,
+      devAuthBypass: user.isDevAuthBypass,
       model,
       messages: parsed.data.messages.length,
       range: parsed.data.range,

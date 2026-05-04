@@ -5,6 +5,7 @@ import { genSaltSync, hashSync } from 'bcrypt-ts';
 import { randomUUID } from 'crypto';
 
 import { env } from './env';
+import { isLocalhostHost } from './lib/auth/dev-bypass';
 import {
   InsertItem,
   SelectItem,
@@ -53,6 +54,32 @@ export async function createUser(email: string, password: string) {
   let hash = hashSync(password, salt);
 
   return await db.insert(users).values({ email, password: hash }).returning();
+}
+
+export async function ensureLocalDevUser(email: string) {
+  const existing = await getUser(email);
+  if (existing[0]) return existing[0];
+
+  const dbHost = runtimeUrl ? new URL(runtimeUrl).hostname : null;
+  if (!isLocalhostHost(dbHost)) {
+    throw new Error('Local dev auth bypass will not create users outside a localhost database');
+  }
+
+  const salt = genSaltSync(10);
+  const password = hashSync(randomUUID(), salt);
+  const [created] = await db
+    .insert(users)
+    .values({ email, password })
+    .onConflictDoNothing({ target: users.email })
+    .returning();
+
+  if (created) return created;
+
+  const [found] = await getUser(email);
+  if (!found) {
+    throw new Error('Unable to create local dev user');
+  }
+  return found;
 }
 
 type ItemWritePayload = Omit<InsertItem, 'id' | 'userId' | 'createdAt' | 'updatedAt'>;

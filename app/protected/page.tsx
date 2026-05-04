@@ -1,14 +1,15 @@
-import { auth, signOut } from 'app/auth';
+import { signOut } from 'app/auth';
 import { Item } from 'app/types';
 import MainShell from './main-shell';
 import { redirect } from 'next/navigation';
 import { formatDayKey, nowInTz } from 'app/lib/datetime';
 import { loadExpandedItems } from 'app/lib/load-items';
+import { getCurrentUser } from 'app/lib/auth/current-user';
 import { endOfMonth, startOfMonth, format } from 'date-fns';
 
 export default async function ProtectedPage() {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const user = await getCurrentUser();
+  if (!user) {
     redirect('/login');
   }
 
@@ -27,14 +28,14 @@ export default async function ProtectedPage() {
   // Month key YYYY-MM
   const monthKey = format(now, 'yyyy-MM');
 
-  const items = await loadExpandedItems(Number(session!.user!.id), start, end);
+  const items = await loadExpandedItems(user.dbId, start, end);
 
   return (
     <div className="app-root">
       <MainShell
         initialItems={items as Item[]}
         initialMonth={monthKey}
-        userEmail={session?.user?.email ?? ''}
+        userEmail={user.email}
         onSignOut={signOutAction}
       />
     </div>
