@@ -8,7 +8,7 @@ import { DEFAULT_ITEM_COLOR, RECURRING_ITEM_COLOR } from 'app/lib/item-colors';
 const WEEKDAY_HEADERS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
 const GRID_COLUMNS = 7;
 const GRID_ROWS = 6;
-const DEFAULT_CELL_SIZE = 120;
+const DEFAULT_CELL_SIZE = 132;
 
 /** Default colors for dots */
 const DONE_COLOR = '#555';
@@ -169,7 +169,7 @@ export function MonthGrid({
         wrapperStyles.getPropertyValue('--month-header-gap'),
         rowGap
       );
-      const maxCell = Number.parseFloat(wrapperStyles.getPropertyValue('--calendar-cell-max')) || 260;
+      const maxCell = Number.parseFloat(wrapperStyles.getPropertyValue('--calendar-cell-max')) || 360;
       const minCell = Number.parseFloat(wrapperStyles.getPropertyValue('--calendar-cell-min')) || 44;
       const { width, height } = wrapper.getBoundingClientRect();
       const paddingX = (Number.parseFloat(wrapperStyles.paddingLeft) || 0) + (Number.parseFloat(wrapperStyles.paddingRight) || 0);

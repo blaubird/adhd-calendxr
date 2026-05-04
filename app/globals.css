@@ -9,11 +9,11 @@
 :root {
   color-scheme: dark;
 
-  --bg-root: #060a10;
-  --bg-surface: #0a0f18;
-  --bg-card: #0d1321;
-  --bg-elevated: #111827;
-  --bg-glass: rgba(13, 19, 33, 0.65);
+  --bg-root: #000307;
+  --bg-surface: #030811;
+  --bg-card: #070c15;
+  --bg-elevated: #0b1320;
+  --bg-glass: rgba(3, 8, 15, 0.72);
 
   --border-subtle: #1a2236;
   --border-default: #1e293b;
@@ -32,12 +32,15 @@
   --accent-rose: #fb7185;
   --accent-amber: #fbbf24;
 
-  --shadow-soft: 0 8px 40px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 0 20px rgba(56, 189, 248, 0.08);
-  --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.04);
-  --glass-bg: rgba(10, 16, 28, 0.58);
-  --glass-border: rgba(100, 160, 240, 0.12);
-  --glass-blur: blur(16px) saturate(120%);
+  --shadow-soft: 0 18px 58px rgba(0, 0, 0, 0.58);
+  --shadow-glow: 0 0 24px rgba(56, 189, 248, 0.1);
+  --shadow-card:
+    0 18px 60px rgba(0, 0, 0, 0.36),
+    inset 0 1px 0 rgba(255, 255, 255, 0.045),
+    inset 0 -1px 0 rgba(90, 170, 255, 0.035);
+  --glass-bg: rgba(3, 8, 15, 0.68);
+  --glass-border: rgba(150, 190, 230, 0.12);
+  --glass-blur: blur(18px) saturate(115%);
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
@@ -51,13 +54,13 @@
   --font-lg: 16px;
   --font-xl: 20px;
 
-  --app-topbar-height: clamp(52px, 6.2dvh, 64px);
-  --sidebar-width: clamp(210px, 16vw, 290px);
-  --day-panel-width: clamp(300px, 22vw, 420px);
-  --calendar-shell-gap: clamp(8px, 0.9vw, 16px);
-  --calendar-shell-padding: clamp(8px, 0.9vw, 16px);
+  --app-topbar-height: clamp(48px, 5.2dvh, 58px);
+  --sidebar-width: clamp(190px, 14vw, 250px);
+  --day-panel-width: clamp(280px, 19vw, 360px);
+  --calendar-shell-gap: clamp(6px, 0.62vw, 12px);
+  --calendar-shell-padding: clamp(6px, 0.62vw, 12px);
   --calendar-cell-min: 42;
-  --calendar-cell-max: 280;
+  --calendar-cell-max: 360;
   --calendar-min-width: 0;
   --calendar-min-height: 0;
 }
@@ -111,7 +114,8 @@
    ═══════════════════════════════════════════════════ */
 
 body {
-  background: var(--bg-root);
+  background:
+    linear-gradient(145deg, #050b14 0%, #000307 54%, #020711 100%);
   color: var(--text-primary);
   min-height: 100vh;
   font-family: var(--font-geist-sans, 'Inter', -apple-system, BlinkMacSystemFont, sans-serif);
@@ -168,7 +172,8 @@ textarea {
 .app-root {
   min-height: 100vh;
   min-height: 100dvh;
-  background: var(--bg-root);
+  background:
+    linear-gradient(145deg, #050b14 0%, #000307 58%, #020711 100%);
 }
 
 .app-shell {
@@ -178,8 +183,8 @@ textarea {
   grid-template-rows: var(--app-topbar-height) minmax(0, 1fr);
   overflow: hidden;
   background:
-    radial-gradient(circle at 48% 8%, rgba(20, 45, 78, 0.18), transparent 34%),
-    var(--bg-root);
+    radial-gradient(circle at 50% -6%, rgba(105, 170, 235, 0.105), transparent 32%),
+    linear-gradient(145deg, #050b14 0%, #000307 58%, #020711 100%);
   animation: fade-in 0.3s ease-out forwards;
 }
 
@@ -188,11 +193,15 @@ textarea {
   height: var(--app-topbar-height);
   display: flex;
   align-items: center;
-  gap: clamp(18px, 1.7vw, 28px);
-  padding: 0 clamp(16px, 1.35vw, 24px);
-  border-bottom: 1px solid rgba(100, 160, 240, 0.1);
-  background: rgba(5, 9, 16, 0.76);
+  gap: clamp(14px, 1.25vw, 24px);
+  padding: 0 clamp(12px, 1vw, 20px);
+  border-bottom: 1px solid rgba(150, 190, 230, 0.1);
+  background:
+    linear-gradient(145deg, rgba(7, 14, 26, 0.84), rgba(0, 3, 7, 0.72));
   backdrop-filter: var(--glass-blur);
+  box-shadow:
+    0 12px 34px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.035);
   flex-shrink: 0;
   z-index: 50;
 }
@@ -213,8 +222,12 @@ textarea {
   height: clamp(26px, 1.9vw, 31px);
   border-radius: 999px;
   position: relative;
-  background: linear-gradient(135deg, #0066d8, #22d3ee);
-  box-shadow: 0 0 20px rgba(56, 189, 248, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  background:
+    radial-gradient(circle at 38% 28%, rgba(220, 245, 255, 0.85), rgba(73, 128, 178, 0.42) 38%, rgba(3, 9, 18, 0.92) 72%);
+  box-shadow:
+    0 0 16px rgba(120, 190, 245, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    inset 0 -8px 14px rgba(0, 0, 0, 0.44);
 }
 
 .app-brand-mark::after {
@@ -256,8 +269,8 @@ textarea {
 }
 
 .app-tab--active {
-  color: #00d5ff;
-  text-shadow: 0 0 14px rgba(0, 213, 255, 0.35);
+  color: #8ddcff;
+  text-shadow: 0 0 14px rgba(56, 189, 248, 0.2);
 }
 
 .app-tab--active::after {
@@ -268,8 +281,8 @@ textarea {
   bottom: 13px;
   height: 2px;
   border-radius: 999px;
-  background: #00d5ff;
-  box-shadow: 0 0 16px rgba(0, 213, 255, 0.44);
+  background: rgba(141, 220, 255, 0.88);
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.26);
 }
 
 .app-topbar-actions {
@@ -426,8 +439,8 @@ textarea {
   gap: var(--calendar-shell-gap);
   padding: var(--calendar-shell-padding);
   background:
-    radial-gradient(circle at 52% 6%, rgba(28, 60, 105, 0.1), transparent 38%),
-    var(--bg-root);
+    radial-gradient(circle at 50% 4%, rgba(115, 170, 225, 0.075), transparent 34%),
+    linear-gradient(145deg, rgba(5, 11, 20, 0.72), rgba(0, 3, 7, 0.92));
 }
 
 .calendar-error {
@@ -441,14 +454,15 @@ textarea {
    ═══════════════════════════════════════════════════ */
 
 .sidebar {
-  background: rgba(8, 15, 28, 0.58);
-  backdrop-filter: blur(18px) saturate(120%);
-  border: 1px solid rgba(120, 180, 255, 0.14);
+  background:
+    linear-gradient(145deg, rgba(7, 14, 26, 0.82), rgba(0, 3, 7, 0.64));
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid rgba(150, 190, 230, 0.12);
   border-radius: var(--radius-lg);
   display: flex;
   flex-direction: column;
-  padding: 8px;
-  gap: 8px;
+  padding: 7px;
+  gap: 7px;
   position: relative;
   top: 0;
   height: 100%;
@@ -459,17 +473,18 @@ textarea {
 
 .sidebar-card {
   border-radius: var(--radius-md);
-  border: 1px solid rgba(120, 180, 255, 0.13);
-  background: rgba(10, 18, 34, 0.56);
-  backdrop-filter: blur(12px) saturate(118%);
-  padding: 8px;
+  border: 1px solid rgba(150, 190, 230, 0.105);
+  background:
+    linear-gradient(145deg, rgba(7, 14, 26, 0.68), rgba(0, 3, 7, 0.5));
+  backdrop-filter: blur(14px) saturate(112%);
+  padding: 7px;
   box-shadow: var(--shadow-card);
   transition: border-color 0.18s ease-out, box-shadow 0.18s ease-out, background 0.18s ease-out;
 }
 
 .sidebar-card:hover {
-  border-color: rgba(100, 160, 240, 0.2);
-  box-shadow: var(--shadow-card), 0 0 14px rgba(56, 189, 248, 0.06);
+  border-color: rgba(142, 190, 235, 0.18);
+  box-shadow: var(--shadow-card), 0 0 18px rgba(56, 189, 248, 0.045);
 }
 
 .sidebar-header {
@@ -866,31 +881,48 @@ textarea {
   justify-content: flex-start;
   padding: 0;
   overflow: hidden;
-  background: var(--bg-root);
+  background: transparent;
   min-height: 0;
   min-width: 0;
 }
 
 .month-grid-wrapper {
-  --month-grid-gap: clamp(6px, 0.5vw, 9px);
-  --month-header-gap: clamp(6px, 0.75dvh, 10px);
+  --month-grid-gap: clamp(7px, 0.58vw, 12px);
+  --month-header-gap: clamp(5px, 0.58dvh, 8px);
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  justify-content: center;
+  justify-content: stretch;
   min-height: 0;
   min-width: 0;
   width: 100%;
   height: 100%;
-  padding: clamp(6px, 0.75dvh, 10px) clamp(6px, 0.7vw, 12px);
-  border: 1px solid rgba(120, 180, 255, 0.14);
+  padding: clamp(4px, 0.45dvh, 8px) clamp(5px, 0.52vw, 10px);
+  border: 1px solid rgba(150, 190, 230, 0.12);
   border-radius: var(--radius-lg);
   background:
-    radial-gradient(circle at 50% 6%, rgba(20, 45, 78, 0.12), transparent 44%),
-    rgba(8, 15, 28, 0.54);
-  backdrop-filter: blur(18px) saturate(120%);
-  box-shadow: var(--shadow-card);
+    radial-gradient(circle at 50% 0%, rgba(120, 185, 240, 0.105), transparent 36%),
+    linear-gradient(145deg, rgba(7, 14, 26, 0.78), rgba(0, 3, 7, 0.66));
+  backdrop-filter: var(--glass-blur);
+  box-shadow:
+    0 22px 74px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.045),
+    inset 0 -1px 0 rgba(90, 170, 255, 0.04);
+  overflow: hidden;
+  position: relative;
+}
+
+.month-grid-wrapper::before {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  border-radius: calc(var(--radius-lg) - 1px);
+  pointer-events: none;
+  background:
+    linear-gradient(105deg, transparent 4%, rgba(255, 255, 255, 0.035) 12%, transparent 28%),
+    radial-gradient(circle at 50% 0%, rgba(150, 210, 255, 0.07), transparent 30%);
+  opacity: 0.9;
 }
 
 .month-grid-stage {
@@ -921,8 +953,8 @@ textarea {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  color: var(--text-dimmed);
-  padding: 2px 0 5px;
+  color: rgba(137, 164, 196, 0.7);
+  padding: 1px 0 4px;
 }
 
 .month-grid {
@@ -944,15 +976,15 @@ textarea {
   flex-direction: column;
   align-items: flex-start;
   gap: 3px;
-  padding: clamp(5px, 0.75dvh, 8px) clamp(6px, 0.7dvw, 9px);
+  padding: clamp(7px, calc(var(--calendar-cell-size) * 0.07), 13px);
   width: 100%;
   height: 100%;
   aspect-ratio: 1 / 1;
   min-height: 0;
   border-radius: var(--radius-md);
-  border: 1px solid var(--glass-border);
+  border: 1px solid rgba(150, 190, 230, 0.115);
   cursor: pointer;
-  transition: border-color 0.18s ease-out, box-shadow 0.18s ease-out;
+  transition: border-color 0.18s ease-out, box-shadow 0.18s ease-out, color 0.18s ease-out;
   text-align: left;
   overflow: visible;
   z-index: 1;
@@ -963,22 +995,29 @@ textarea {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: rgba(10, 18, 34, 0.56);
-  backdrop-filter: blur(12px) saturate(118%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  background:
+    linear-gradient(145deg, rgba(9, 16, 29, 0.76), rgba(0, 3, 7, 0.62));
+  backdrop-filter: blur(16px) saturate(112%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.045),
+    inset 0 -1px 0 rgba(90, 170, 255, 0.035),
+    0 10px 26px rgba(0, 0, 0, 0.18);
   z-index: -1;
   transition: background 0.18s ease-out;
   pointer-events: none;
 }
 
 .month-cell:hover {
-  border-color: rgba(100, 160, 240, 0.22);
+  border-color: rgba(145, 197, 242, 0.22);
   z-index: 10;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25), 0 0 12px rgba(56, 189, 248, 0.04);
+  box-shadow:
+    0 10px 28px rgba(0, 0, 0, 0.32),
+    0 0 16px rgba(56, 189, 248, 0.055);
 }
 
 .month-cell:hover .month-cell-bg {
-  background: rgba(14, 22, 38, 0.68);
+  background:
+    linear-gradient(145deg, rgba(12, 22, 38, 0.82), rgba(0, 4, 10, 0.68));
 }
 
 .month-cell:focus-visible {
@@ -1005,21 +1044,29 @@ textarea {
 }
 
 .month-cell--today {
-  border-color: rgba(56, 189, 248, 0.35);
-  box-shadow: 0 0 18px rgba(56, 189, 248, 0.08), inset 0 0 0 1px rgba(56, 189, 248, 0.06);
+  border-color: rgba(93, 203, 255, 0.35);
+  box-shadow:
+    0 0 0 1px rgba(40, 190, 255, 0.16),
+    0 0 18px rgba(40, 190, 255, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.045);
 }
 
 .month-cell--today .month-cell-bg {
-  background: rgba(56, 189, 248, 0.04);
+  background:
+    linear-gradient(145deg, rgba(11, 23, 38, 0.82), rgba(0, 6, 12, 0.7));
 }
 
 .month-cell--selected {
-  border-color: rgba(56, 189, 248, 0.45);
-  box-shadow: 0 0 22px rgba(56, 189, 248, 0.1), 0 0 0 1px rgba(56, 189, 248, 0.1);
+  border-color: rgba(104, 210, 255, 0.48);
+  box-shadow:
+    0 0 0 1px rgba(40, 190, 255, 0.3),
+    0 0 24px rgba(40, 190, 255, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.055);
 }
 
 .month-cell--selected .month-cell-bg {
-  background: rgba(56, 189, 248, 0.06);
+  background:
+    linear-gradient(145deg, rgba(14, 29, 48, 0.86), rgba(0, 6, 14, 0.74));
 }
 
 .month-cell-number {
@@ -1039,13 +1086,13 @@ textarea {
 .month-cell-dots {
   display: flex;
   flex-wrap: wrap;
-  gap: 3px;
+  gap: clamp(3px, calc(var(--calendar-cell-size) * 0.03), 5px);
   max-width: 100%;
   align-items: center;
   margin-top: auto;
   position: relative;
   z-index: 2;
-  padding: 1px 0;
+  padding: 2px 0 1px;
 }
 
 .month-dot {
@@ -1085,9 +1132,10 @@ textarea {
    ═══════════════════════════════════════════════════ */
 
 .day-panel {
-  background: rgba(8, 15, 28, 0.58);
-  backdrop-filter: blur(18px) saturate(120%);
-  border: 1px solid rgba(120, 180, 255, 0.14);
+  background:
+    linear-gradient(145deg, rgba(7, 14, 26, 0.82), rgba(0, 3, 7, 0.64));
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid rgba(150, 190, 230, 0.12);
   border-radius: var(--radius-lg);
   display: flex;
   flex-direction: column;
@@ -1101,7 +1149,7 @@ textarea {
   flex-direction: column;
   gap: 5px;
   padding: 10px 12px 9px;
-  border-bottom: 1px solid rgba(120, 180, 255, 0.12);
+  border-bottom: 1px solid rgba(150, 190, 230, 0.1);
   flex-shrink: 0;
 }
 
@@ -1162,7 +1210,8 @@ textarea {
   padding: 4px 8px;
   border-radius: var(--radius-md);
   border: 1px solid var(--glass-border);
-  background: var(--glass-bg);
+  background:
+    linear-gradient(145deg, rgba(8, 15, 27, 0.66), rgba(0, 4, 10, 0.52));
   backdrop-filter: blur(6px);
   color: var(--text-secondary);
   font-size: var(--font-xs);
@@ -1268,8 +1317,8 @@ textarea {
   padding: 5px;
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
-  background: rgba(8, 14, 26, 0.35);
-  backdrop-filter: blur(6px);
+  background: rgba(2, 7, 14, 0.42);
+  backdrop-filter: blur(8px);
   transition: border-color 0.16s ease-out, background 0.16s ease-out;
 }
 
@@ -1360,17 +1409,23 @@ textarea {
   border-radius: var(--radius-md);
   border: 1px solid var(--glass-border);
   border-left: 3px solid var(--accent-pink);
-  background: rgba(10, 18, 34, 0.58);
-  backdrop-filter: blur(10px) saturate(118%);
+  background:
+    linear-gradient(145deg, rgba(8, 15, 27, 0.72), rgba(0, 3, 7, 0.58));
+  backdrop-filter: blur(12px) saturate(112%);
   min-height: 33px;
   transition: border-color 0.16s ease-out, background 0.16s ease-out, box-shadow 0.16s ease-out, opacity 0.14s ease-out;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.03);
+  box-shadow:
+    0 7px 18px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.035);
 }
 
 .day-panel-card:hover {
-  border-color: rgba(100, 160, 240, 0.22);
-  background: rgba(14, 22, 38, 0.7);
-  box-shadow: 0 4px 16px rgba(0,0,0,0.24), 0 0 10px rgba(56, 189, 248, 0.04);
+  border-color: rgba(145, 197, 242, 0.2);
+  background:
+    linear-gradient(145deg, rgba(12, 22, 38, 0.78), rgba(0, 4, 10, 0.64));
+  box-shadow:
+    0 10px 22px rgba(0, 0, 0, 0.28),
+    0 0 12px rgba(56, 189, 248, 0.04);
 }
 
 .day-panel-card--highlighted {
@@ -2192,21 +2247,21 @@ textarea {
 
 @media (max-width: 1100px) {
   :root {
-    --sidebar-width: clamp(190px, 19vw, 220px);
-    --day-panel-width: clamp(270px, 28vw, 310px);
-    --calendar-shell-gap: 10px;
-    --calendar-shell-padding: 8px;
-    --calendar-cell-max: 240;
+    --sidebar-width: clamp(178px, 17vw, 205px);
+    --day-panel-width: clamp(260px, 25vw, 292px);
+    --calendar-shell-gap: 7px;
+    --calendar-shell-padding: 6px;
+    --calendar-cell-max: 300;
     --calendar-min-width: 0;
   }
 }
 
 @media (max-height: 760px) {
   :root {
-    --app-topbar-height: 58px;
-    --calendar-shell-padding: 8px;
-    --calendar-shell-gap: 10px;
-    --calendar-cell-max: 220;
+    --app-topbar-height: 52px;
+    --calendar-shell-padding: 6px;
+    --calendar-shell-gap: 7px;
+    --calendar-cell-max: 280;
     --calendar-min-height: 0;
   }
 
@@ -2264,8 +2319,8 @@ textarea {
 
   .month-grid-wrapper {
     --month-grid-gap: 6px;
-    --month-header-gap: 6px;
-    padding: 6px 8px;
+    --month-header-gap: 5px;
+    padding: 4px 6px;
   }
 
   .month-weekday-header {
